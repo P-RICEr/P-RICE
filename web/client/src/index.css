@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #f4faf6;
+}
+
+.dark body {
+  background-color: #0d2b1a;
+}
+
+/* Line colors as CSS variables, not JS props, so toggling dark mode never
+   changes the `stroke` prop Recharts sees on <Line>. If it did, Recharts
+   would treat that as a data change and replay the entry animation,
+   making the lines vanish for a moment every time the theme is switched. */
+:root {
+  --p-rice-actual-stroke: #256639;
+  --p-rice-forecast-stroke: #dc2626;
+}
+
+.dark {
+  --p-rice-actual-stroke: #6ee7a0;
+  --p-rice-forecast-stroke: #f87171;
+}
+
+/* Recharts renders axis ticks and legend labels as SVG <text>, which is
+   colored via `fill`, not `stroke` -- Tailwind's text-* classes set
+   `color`, so this makes that inherited color apply to the SVG text too. */
+.recharts-wrapper text,
+.recharts-legend-item-text {
+  fill: currentColor;
+}
