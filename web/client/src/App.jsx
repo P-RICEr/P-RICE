@@ -241,7 +241,7 @@ export default function App() {
                       <p>
                         Forecast is generated using historical {seriesLabel.toLowerCase()} rice
                         prices and market indicators (Brent oil, farmgate price, inflation, rice
-                        stocks, and rainfall), read directly from this project's model output.
+                        stocks, exchange rate, temperature, rainfall, and volume of production), read directly from this project's model output.
                       </p>
                     </div>
                     <button

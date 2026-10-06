@@ -165,8 +165,8 @@ function loadResults() {
 
 // ---------- Exogenous factor snapshot (for the SHAP factors panel) ----------
 //
-// Brent oil, farmgate price, inflation, rice stocks and rainfall are
-// nationwide indicators baked into every rice-type CSV as identical columns
+// Brent oil, farmgate price, inflation, rice stocks, exchange rate,
+// temperature, rainfall and volume of production are nationwide indicators baked into every rice-type CSV as identical columns
 // (see Section 1 of the notebook), so we read them once from a fixed
 // reference file rather than per selected series.
 const FACTOR_REFERENCE_FILE = "Local Special Rice.csv";
@@ -176,7 +176,10 @@ const EXOGENOUS_COLUMNS = {
   Farmgate_LCU_tonne: { label: "Farmgate Price", unit: "₱/tonne", decimals: 0 },
   Inflation_Rate: { label: "Inflation Rate", unit: "%", decimals: 1 },
   Stocks_MT: { label: "Rice Stocks", unit: "MT", decimals: 0 },
+  USD_to_PHP: { label: "Exchange Rate", unit: "₱ per $", decimals: 2 },
+  Temp_C: { label: "Temperature", unit: "°C", decimals: 1 },
   Rainfall_mm: { label: "Rainfall", unit: "mm", decimals: 1 },
+  VoP_MT: { label: "Volume of Production", unit: "MT", decimals: 0 },
 };
 
 function parseCsvFactorRows(filePath) {
@@ -401,7 +404,7 @@ app.get("/api/model-info", (req, res) => {
     const { horizonDecision, shapFactors } = loadResults();
     const decision = horizonDecision.find((h) => h.horizon === horizon) || null;
     const snapshot = latestFactorSnapshot();
-    const topFactors = shapFactors.slice(0, 8).map((f) => ({
+    const topFactors = shapFactors.map((f) => ({
       ...f,
       ...(snapshot[f.factor] || {}),
     }));
