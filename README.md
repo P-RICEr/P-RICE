@@ -11,7 +11,7 @@ P-RICE forecasts the monthly retail price (PHP/kg) of 8 rice types, 1 to 6 month
 |---|---|
 | `P-RICE Model - All Rice Types (Monthly).ipynb` | **Main model.** All 8 rice types, monthly, 1–6 months ahead, XGBoost vs ARIMA vs Naive, SHAP. Use this one. |
 | `Local Special Rice - Model Development (with charts).ipynb` | Original weekly notebook (Local Special only), with correct overall scores, naive comparison and charts added. |
-| `Local/Imported ... Rice.csv` (8 files) | Weekly rice prices (DA Price Monitoring) with the 5 predictors: Brent oil, farmgate, inflation, rice stocks, rainfall. |
+| `Local/Imported ... Rice.csv` (8 files) | Weekly rice prices (DA Price Monitoring) with the 8 predictors: Brent oil, farmgate, inflation, rice stocks, exchange rate (USD to PHP), temperature, rainfall, volume of production. |
 | `P-RICE Results.xlsx` | Results created by the main notebook (tables for Chapter 4). Re-created every time you run it. |
 
 ---
