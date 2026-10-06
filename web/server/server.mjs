@@ -99,7 +99,14 @@ function readSheet(wb, name) {
 }
 
 function excelDateToISO(v) {
-  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  // SheetJS builds Date objects at local midnight. Read the local calendar
+  // date instead of toISOString(), which converts to UTC and, in UTC+8
+  // (Philippines), rolls every date back one day (June 1 -> May 31).
+  if (v instanceof Date) {
+    return new Date(Date.UTC(v.getFullYear(), v.getMonth(), v.getDate()))
+      .toISOString()
+      .slice(0, 10);
+  }
   if (typeof v === "number") {
     const d = XLSX.SSF.parse_date_code(v);
     return new Date(Date.UTC(d.y, d.m - 1, d.d)).toISOString().slice(0, 10);
