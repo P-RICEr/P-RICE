@@ -1,0 +1,16 @@
+# Jupyter auto-backups
+.ipynb_checkpoints/
+
+# Node dependencies
+node_modules/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Office lock files (created while a file is open in Excel/Word)
+~$*
