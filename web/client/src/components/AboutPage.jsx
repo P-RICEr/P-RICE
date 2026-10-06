@@ -56,7 +56,8 @@ export default function AboutPage() {
           distributors, and households to plan ahead. <strong>P-RICE</strong> is an XGBoost
           regression model that forecasts Philippine retail rice prices, months ahead, using
           historical price data together with agricultural, macroeconomic, and weather-related
-          indicators (Brent crude oil, farmgate price, inflation, rice stocks, and rainfall).
+          indicators (Brent crude oil, farmgate price, inflation, rice stocks, exchange rate,
+          temperature, rainfall, and volume of production).
           This dashboard shows those forecasts, benchmarked against ARIMA and a naive baseline,
           alongside the factors driving each prediction.
         </p>
