@@ -42,6 +42,8 @@ const chip = (active) =>
       : "text-rice-700 hover:bg-white dark:text-rice-200 dark:hover:bg-white/10"
   }`;
 
+const legendText = (v) => <span className="text-rice-900 dark:text-rice-100">{v}</span>;
+
 function horizonLabel(h, unit, short = false) {
   if (short) return `${h} ${unit === "week" ? "wk" : "mo"}`;
   return `${h} ${unit}${h > 1 ? "s" : ""}`;
@@ -267,7 +269,7 @@ export default function ResultsPage() {
                   />
                   <YAxis tick={{ fontSize: 12 }} stroke="currentColor" width={48} />
                   <Tooltip content={<ChartTooltip unit={unit} metric={metric} />} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} formatter={legendText} />
                   {MODELS.map((m) => (
                     <Line
                       key={m.key}
@@ -276,7 +278,7 @@ export default function ResultsPage() {
                       name={m.label}
                       stroke={m.color}
                       strokeWidth={2}
-                      dot={{ r: 4, strokeWidth: 2, fill: "var(--chart-surface, #fff)" }}
+                      dot={{ r: 4, strokeWidth: 2, fill: "var(--chart-surface)" }}
                       activeDot={{ r: 6 }}
                       isAnimationActive={false}
                     />
@@ -325,7 +327,7 @@ export default function ResultsPage() {
                   {data.horizonDecision.map((h) => {
                     const win = h.beatsArima && h.beatsNaive;
                     return (
-                      <tr key={h.horizon} className={win ? "bg-emerald-50/60 dark:bg-emerald-900/20" : ""}>
+                      <tr key={h.horizon} className={win ? "bg-emerald-50 dark:bg-emerald-400/10" : ""}>
                         <td className={td + " font-semibold"}>{horizonLabel(h.horizon, unit)}</td>
                         <td className={td + " font-semibold"}>{fmt(h.xgboost)}</td>
                         <td className={td}>{fmt(h.arima)}</td>
@@ -386,7 +388,7 @@ export default function ResultsPage() {
                     cursor={{ fill: "currentColor", opacity: 0.06 }}
                     content={<ChartTooltip metric={metric} />}
                   />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} formatter={legendText} />
                   {MODELS.map((m) => (
                     <Bar
                       key={m.key}
