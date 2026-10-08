@@ -31,6 +31,7 @@ still finish.
 
 import argparse
 import sys
+import time
 from datetime import date
 from io import StringIO
 from pathlib import Path
@@ -45,13 +46,22 @@ REFERENCE_CSV = MODEL_DIR / "Local Special Rice.csv"
 
 START = "2023-08-01"          # first month of the P-RICE dataset
 TIMEOUT = 60
-HEADERS = {"User-Agent": "P-RICE thesis data pipeline (research use)"}
+# A normal browser User-Agent: some sites (FRED) reset connections from
+# scripts that do not send one.
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+    "Accept": "text/csv,application/json,text/plain,*/*",
+}
 
 FRED_SERIES = "MCOILBRENTEU"   # Brent crude, USD per barrel, monthly average
 NASA_LAT, NASA_LON = 14.5995, 120.9842
+# Folder and table IDs as they appear in the OpenSTAT browse link
+# (.../pxweb/en/DB/DB__2E__CS/0032E4ECNV0.px). In the link, "__" separates
+# folders, so the API path is DB/2E/CS/<table>.
 OPENSTAT_TABLES = {
-    "rice_stocks": "DB/DB__2E__CS/0032E4ECNV0.px",
-    "volume_of_production": "DB/DB__2E__CS/0012E4EVCP0.px",
+    "rice_stocks": ("DB", "DB__2E__CS", "0032E4ECNV0.px"),
+    "volume_of_production": ("DB", "DB__2E__CS", "0012E4EVCP0.px"),
 }
 OPENSTAT_API = "https://openstat.psa.gov.ph/PXWeb/api/v1/en/"
 
@@ -62,10 +72,26 @@ def say(msg=""):
 
 # ---------------------------------------------------------------- FRED
 
+def get_with_retry(urls, tries=3):
+    """GET the first URL that works, retrying each a few times."""
+    last = None
+    for url in urls:
+        for attempt in range(tries):
+            try:
+                resp = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+                resp.raise_for_status()
+                return resp
+            except requests.RequestException as e:
+                last = e
+                time.sleep(2 * (attempt + 1))
+    raise last
+
+
 def fetch_brent(start=START):
-    url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={FRED_SERIES}"
-    resp = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
-    resp.raise_for_status()
+    resp = get_with_retry([
+        f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={FRED_SERIES}",
+        f"https://fred.stlouisfed.org/series/{FRED_SERIES}/downloaddata/{FRED_SERIES}.csv",
+    ])
     df = pd.read_csv(StringIO(resp.text))
     date_col = df.columns[0]                     # "observation_date" or "DATE"
     df = df.rename(columns={date_col: "Date", FRED_SERIES: "Brent_Oil_USD"})
@@ -126,15 +152,34 @@ def nasa_monthly(daily):
 
 # ------------------------------------------------------ PSA OpenSTAT
 
-def fetch_openstat(table_path):
+def openstat_candidates(db, folder, table):
+    parts = folder.split("__")              # "DB__2E__CS" -> ["DB", "2E", "CS"]
+    if parts[0] == db:
+        parts = parts[1:]
+    return [
+        f"{OPENSTAT_API}{db}/{'/'.join(parts)}/{table}",   # DB/2E/CS/table (usual)
+        f"{OPENSTAT_API}{db}/{folder}/{table}",            # DB/DB__2E__CS/table
+        f"{OPENSTAT_API}{db}/{table}",                     # DB/table
+    ]
+
+
+def fetch_openstat(db, folder, table):
     """Download a whole PXWeb table as a long table with readable labels.
 
     Reads the table's own metadata first, so the variable codes do not
-    need to be known in advance.
+    need to be known in advance. Tries the usual API path forms, since the
+    browse link and the API path are written differently.
     """
-    url = OPENSTAT_API + table_path
-    meta = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
-    meta.raise_for_status()
+    meta, url, tried = None, None, []
+    for candidate in openstat_candidates(db, folder, table):
+        tried.append(candidate)
+        r = requests.get(candidate, headers=HEADERS, timeout=TIMEOUT)
+        if r.status_code == 200 and "variables" in r.text:
+            meta, url = r, candidate
+            break
+    if meta is None:
+        raise RuntimeError("table not found at: " + " | ".join(tried))
+    say(f"     found at {url}")
     variables = meta.json()["variables"]
 
     query = {
@@ -229,7 +274,7 @@ def main():
     for i, (name, table) in enumerate(OPENSTAT_TABLES.items(), start=3):
         say(f"{i}/4  {name.replace('_', ' ')} (PSA OpenSTAT)")
         try:
-            df, var_names = fetch_openstat(table)
+            df, var_names = fetch_openstat(*table)
             df.to_csv(OUT / f"openstat_{name}.csv", index=False)
             say(f"     variables: {', '.join(var_names)}")
             summary.append((name.replace("_", " ").capitalize(), f"{len(df)} rows",
