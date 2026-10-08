@@ -17,3 +17,4 @@ Thumbs.db
 
 # Downloads from update_data.py
 Model Development/data_pipeline/latest/
+Model Development/data_pipeline/build/
