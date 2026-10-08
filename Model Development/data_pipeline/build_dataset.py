@@ -123,21 +123,40 @@ def farmgate():
     downloaded = LATEST / "openstat_farmgate.csv"
     if downloaded.exists():
         df = pd.read_csv(downloaded)
-        value = df.columns[-1]
-        period = next(c for c in df.columns if c.lower() in ("period", "month"))
-        commodity = next((c for c in df.columns if "commodity" in c.lower()), None)
-        df = df[df[period].astype(str).str.strip().isin(MONTHS)].dropna(subset=[value])
-        label = "palay"
-        if commodity:
-            # One palay series: prefer "Other Variety" (ordinary palay), else the first one.
-            names = list(df[commodity].unique())
-            pick = next((n for n in names if "OTHER" in str(n).upper()), names[0])
-            df = df[df[commodity] == pick]
-            label = pick
-        dates = pd.to_datetime(df["Year"].astype(int).astype(str) + "-"
-                               + df[period].str.strip().map(lambda m: MONTHS.index(m) + 1).astype(str) + "-01")
-        return (month_series(dates, df[value] * 1000, "Farmgate_LCU_tonne"),
-                f"PSA OpenSTAT ({label}, PHP/kg x 1000)")
+        if "Table" not in df:
+            df.insert(0, "Table", "openstat")
+        series, labels = [], []
+        for table, t in df.groupby("Table", sort=False):
+            t = t.dropna(axis=1, how="all")
+            value = t.columns[-1]
+            period = next((c for c in t.columns if c.lower() in ("period", "month")), None)
+            year = next((c for c in t.columns if c.lower() == "year"), None)
+            commodity = next((c for c in t.columns if "commodity" in c.lower()), None)
+            if not period or not year:
+                continue
+            t = t[t[period].astype(str).str.strip().isin(MONTHS)].dropna(subset=[value])
+            if commodity:
+                # One palay series: prefer "Other Variety" (ordinary palay), else the first one.
+                names = list(t[commodity].unique())
+                if not names:
+                    continue
+                pick = next((n for n in names if "OTHER" in str(n).upper()), names[0])
+                t = t[t[commodity] == pick]
+                labels.append(f"{table}: {pick}")
+            dates = pd.to_datetime(t[year].astype(int).astype(str) + "-"
+                                   + t[period].str.strip().map(lambda m: MONTHS.index(m) + 1).astype(str) + "-01")
+            series.append(month_series(dates, t[value] * 1000, "Farmgate_LCU_tonne"))
+        if series:
+            # Newest table wins where tables overlap; older tables fill earlier years.
+            series.sort(key=lambda s: s.index.max())
+            out = series[-1]
+            for older in reversed(series[:-1]):
+                both = out.index.intersection(older.index)
+                if len(both):
+                    gap = (out[both] - older[both]).abs().mean() / 1000
+                    print(f"  farmgate tables overlap {len(both)} months, mean difference PHP {gap:.2f}/kg")
+                out = out.combine_first(older)
+            return out.rename("Farmgate_LCU_tonne"), "PSA OpenSTAT (" + "; ".join(labels) + ", PHP/kg x 1000)"
     raise FileNotFoundError(
         "no farmgate source yet: run update_data.py --only farmgate, or add sources/farmgate_monthly.csv")
 

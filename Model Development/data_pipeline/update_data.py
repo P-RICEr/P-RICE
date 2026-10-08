@@ -290,8 +290,11 @@ def fetch_farmgate():
                 -h.get("score", 0))
     hits.sort(key=rank)
 
-    errors = []
-    for best in hits[:5]:
+    # Download every Cereals farmgate table that has palay: PSA keeps the
+    # older years (before 2010) and the newer years in different tables.
+    errors, frames, all_vars = [], [], []
+    cereal = [h for h in hits if h["title"].lower().startswith("cereals")] or hits[:5]
+    for best in cereal:
         path = best["path"].strip("/").split("/")
         url = f"{OPENSTAT_API}DB/{'/'.join(path)}/{best['id']}"
         try:
@@ -310,17 +313,27 @@ def fetch_farmgate():
             if palay:
                 only[v["code"]] = palay
                 has_palay = True
-        if not has_palay and "palay" not in best["title"].lower():
+        if not has_palay:
             errors.append(f"{best['id']}: no palay rows")
             continue
         say(f"     table: {best['title']}")
         say(f"     found at {url}")
         for v in variables:
-            if v["code"] in only and v["code"] not in ("Geolocation",):
+            if v["code"] in only and v["code"] != "Geolocation":
                 texts = dict(zip(v["values"], v.get("valueTexts", v["values"])))
-                picked = [texts[c] for c in only[v["code"]]]
-                say(f"     {v['text']}: {', '.join(picked)[:150]}")
-        return download_openstat(url, variables, only)
+                say(f"     {v['text']}: {', '.join(texts[c] for c in only[v['code']])[:150]}")
+            if "year" in v["text"].lower():
+                say(f"     years: {v['valueTexts'][0]} to {v['valueTexts'][-1]}")
+        try:
+            df, names = download_openstat(url, variables, only)
+        except Exception as e:
+            errors.append(f"{best['id']}: {e}")
+            continue
+        df.insert(0, "Table", best["id"])
+        frames.append(df)
+        all_vars += [n for n in names if n not in all_vars]
+    if frames:
+        return pd.concat(frames, ignore_index=True), all_vars
     raise RuntimeError("farmgate tables found but none had palay: " + "; ".join(errors)[:300])
 
 
