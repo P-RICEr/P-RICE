@@ -137,7 +137,7 @@ export default function App() {
             <button
               onClick={() => setDark(!dark)}
               title={dark ? "Switch to light mode" : "Switch to dark mode"}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-rice-100 text-rice-700 hover:bg-rice-50 sm:hidden dark:border-white/10 dark:text-rice-200 dark:hover:bg-white/10"
+              className="flex h-9 w-9 items-center justify-center rounded-full border focus:outline-none focus-visible:ring-2 focus-visible:ring-rice-500 border-rice-100 text-rice-700 hover:bg-rice-50 sm:hidden dark:border-white/10 dark:text-rice-200 dark:hover:bg-white/10"
             >
               {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
@@ -149,7 +149,7 @@ export default function App() {
                 <button
                   key={key}
                   onClick={() => setView(key)}
-                  className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                  className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-rice-500 ${
                     view === key
                       ? "bg-rice-700 text-white shadow-sm"
                       : "text-rice-700 hover:bg-white dark:text-rice-200 dark:hover:bg-white/10"
@@ -161,24 +161,10 @@ export default function App() {
               ))}
             </nav>
 
-            {(view === "dashboard" || view === "compare") && (
-              <select
-                value={horizon}
-                onChange={(e) => setHorizon(Number(e.target.value))}
-                className="rounded-lg border border-rice-100 bg-white px-2 py-1.5 text-xs font-semibold text-rice-900 dark:border-white/10 dark:bg-white/5 dark:text-white"
-              >
-                {HORIZONS.map((h) => (
-                  <option key={h} value={h}>
-                    {h} month{h > 1 ? "s" : ""} ahead
-                  </option>
-                ))}
-              </select>
-            )}
-
             <button
               onClick={() => setDark(!dark)}
               title={dark ? "Switch to light mode" : "Switch to dark mode"}
-              className="hidden h-9 w-9 items-center justify-center rounded-full border border-rice-100 text-rice-700 hover:bg-rice-50 sm:flex dark:border-white/10 dark:text-rice-200 dark:hover:bg-white/10"
+              className="hidden h-9 w-9 items-center justify-center rounded-full border focus:outline-none focus-visible:ring-2 focus-visible:ring-rice-500 border-rice-100 text-rice-700 hover:bg-rice-50 sm:flex dark:border-white/10 dark:text-rice-200 dark:hover:bg-white/10"
             >
               {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
@@ -210,6 +196,26 @@ export default function App() {
                 Make sure the API server is running and that
                 "Model Development/P-RICE Results.xlsx" exists (run the notebook once first).
               </p>
+            </div>
+          )}
+
+          {(view === "dashboard" || view === "compare") && (
+            <div className="flex items-center justify-end gap-2">
+              <label htmlFor="horizon" className="text-xs font-semibold text-rice-700 dark:text-rice-300">
+                Forecast horizon
+              </label>
+              <select
+                id="horizon"
+                value={horizon}
+                onChange={(e) => setHorizon(Number(e.target.value))}
+                className="rounded-lg border border-rice-100 bg-white px-2 py-1.5 text-xs font-semibold text-rice-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-rice-500 dark:border-white/10 dark:bg-rice-900 dark:text-white"
+              >
+                {HORIZONS.map((h) => (
+                  <option key={h} value={h}>
+                    {h} month{h > 1 ? "s" : ""} ahead
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 
