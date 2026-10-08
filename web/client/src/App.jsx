@@ -5,6 +5,7 @@ import RiceTypeSelector from "./components/RiceTypeSelector";
 import ForecastCard from "./components/ForecastCard";
 import TrendChart from "./components/TrendChart";
 import FutureForecast from "./components/FutureForecast";
+import ChatAssistant from "./components/ChatAssistant";
 import ModelInfoPanel from "./components/ModelInfoPanel";
 import CompareTable from "./components/CompareTable";
 import AboutPage from "./components/AboutPage";
@@ -286,6 +287,8 @@ export default function App() {
           )}
         </main>
       )}
+
+      <ChatAssistant series={selected} seriesLabel={seriesLabel} />
 
       <ModelInfoPanel
         open={panelOpen}

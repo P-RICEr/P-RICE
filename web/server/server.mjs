@@ -14,6 +14,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import XLSX from "xlsx";
 import { loadEnv, geminiConfig, callGemini, buildExplainPrompt } from "./gemini.mjs";
+import {
+  rateLimit,
+  cleanMessages,
+  quickGuard,
+  guessLang,
+  buildFacts,
+  cleanReply,
+  CHAT_RULES,
+} from "./chat.mjs";
 
 loadEnv();
 
@@ -289,8 +298,31 @@ function confidenceFromMape(mape) {
 // ---------- API ----------
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+app.disable("x-powered-by");
+
+// Only the dashboard itself may call this API from a browser.
+// Add your deployed site to ALLOWED_ORIGINS in .env (comma-separated).
+const ALLOWED_ORIGINS = (
+  process.env.ALLOWED_ORIGINS ||
+  "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173"
+)
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+app.use(
+  cors({
+    origin: (origin, cb) => cb(null, !origin || ALLOWED_ORIGINS.includes(origin)),
+  })
+);
+app.use((req, res, next) => {
+  res.set({
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+  });
+  next();
+});
+app.use(express.json({ limit: "20kb" }));
 
 function resultsLastUpdated() {
   if (!fs.existsSync(RESULTS_XLSX)) return null;
@@ -626,33 +658,99 @@ app.get("/api/future", (req, res) => {
   }
 });
 
-// ---- Optional Gemini explanation ----
+// ---- Optional Gemini features (explainer + chatbot) ----
 const explainCache = new Map();
 
+// Gemini error text can include model names and Google's wording; keep it
+// in the server log and send the browser something short and safe.
+function publicAiError(err) {
+  if (/busy/i.test(err.message)) return "The AI is busy right now. Please try again in a minute.";
+  if (/not set/i.test(err.message)) return "AI features are turned off on this server.";
+  if (err.message === "blocked") return "The AI could not answer that. Please rephrase your question.";
+  return "The AI is not available right now. Please try again later.";
+}
+
 app.get("/api/explain/status", (req, res) => {
-  const { key, model } = geminiConfig();
-  res.json({ enabled: Boolean(key), model });
+  res.json({ enabled: Boolean(geminiConfig().key) });
 });
 
-app.post("/api/explain", async (req, res) => {
+app.post("/api/explain", rateLimit, async (req, res) => {
   try {
-    const series = String(req.body?.series || "Local Special");
+    const series = String(req.body?.series || "");
+    if (!RICE_FILES[series]) return res.status(400).json({ error: "Unknown rice type" });
     const horizon = Number(req.body?.horizon);
     const lang = req.body?.lang === "tl" ? "tl" : "en";
     const data = futureRows(series);
     const row = data?.rows.find((r) => r.horizon === horizon);
-    if (!row) return res.status(404).json({ error: "No forecast for that rice type and horizon" });
+    if (!row) return res.status(404).json({ error: "No forecast for that rice type and month" });
 
     const cacheKey = `${series}|${horizon}|${lang}|${data.updatedAt}`;
-    if (explainCache.has(cacheKey)) return res.json({ ...explainCache.get(cacheKey), cached: true });
+    if (!req.body?.fresh && explainCache.has(cacheKey)) {
+      return res.json({ ...explainCache.get(cacheKey), cached: true });
+    }
 
-    const out = await callGemini(buildExplainPrompt(series, row, lang));
-    const result = { text: out.text, model: out.model, lang };
+    const out = await callGemini(buildExplainPrompt(series, row, lang), { temperature: 0.5 });
+    const result = { text: cleanReply(out.text), model: out.model, lang };
     explainCache.set(cacheKey, result);
     res.json(result);
   } catch (err) {
-    console.error("Gemini:", err.message);
-    res.status(502).json({ error: err.message });
+    console.error("Gemini (explain):", err.message);
+    res.status(502).json({ error: publicAiError(err) });
+  }
+});
+
+// FACTS for the chatbot, rebuilt only when the model output files change.
+let factsCache = { key: null, text: "" };
+function chatFacts() {
+  const extra = loadExtraResults();
+  const key = `${resultsLastUpdated()}|${extra?.updatedAt}`;
+  if (factsCache.key === key) return factsCache.text;
+  const series = Object.keys(RICE_FILES);
+  const text = buildFacts({
+    series,
+    monthlyActual: (s) => getMonthlyActual(s),
+    results: loadResults(),
+    extra,
+    future: (s) => futureRows(s),
+    snapshot: latestFactorSnapshot(),
+  });
+  factsCache = { key, text };
+  return text;
+}
+
+app.post("/api/chat", rateLimit, async (req, res) => {
+  let messages;
+  try {
+    messages = cleanMessages(req.body?.messages);
+  } catch (e) {
+    return res.status(400).json({ error: e.message });
+  }
+  const question = messages.at(-1).text;
+  const lang = guessLang(question);
+
+  const guarded = quickGuard(question, lang);
+  if (guarded) return res.json({ text: guarded, guarded: true });
+
+  if (!geminiConfig().key) return res.status(503).json({ error: "AI features are turned off on this server." });
+
+  // The rice type open on the dashboard, only if it is one we know.
+  const viewing = RICE_FILES[req.body?.context?.series] ? req.body.context.series : null;
+
+  try {
+    const system =
+      CHAT_RULES +
+      (viewing ? `\n\nThe user is currently viewing: ${viewing} rice.` : "") +
+      "\n\nFACTS (from the P-RICE model output; the only source of numbers)\n" +
+      chatFacts();
+    const contents = messages.map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.text }],
+    }));
+    const out = await callGemini({ system, contents }, { temperature: 0.2 });
+    res.json({ text: cleanReply(out.text) });
+  } catch (err) {
+    console.error("Gemini (chat):", err.message);
+    res.status(502).json({ error: publicAiError(err) });
   }
 });
 
@@ -681,8 +779,8 @@ app.listen(PORT, () => {
   console.log(`Reading model output from: ${RESULTS_XLSX}`);
   console.log(
     geminiConfig().key
-      ? `Gemini explanations: on (${geminiConfig().model})`
-      : "Gemini explanations: off (no GEMINI_API_KEY in web/server/.env)"
+      ? `Gemini AI (explainer + assistant): on, first model ${geminiConfig().model}`
+      : "Gemini AI: off (no GEMINI_API_KEY in web/server/.env)"
   );
   if (!fs.existsSync(RESULTS_XLSX)) {
     console.warn(

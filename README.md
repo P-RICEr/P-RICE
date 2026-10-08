@@ -93,20 +93,39 @@ After changing anything, click **Run All** again.
 
 ---
 
-## Optional: AI explanation (Gemini)
+## Optional: AI features (Gemini)
 
-The "Next forecast" card on the dashboard can ask Google Gemini to explain
-the forecast in plain English or Taglish. Gemini only rewrites the numbers
-already on the card (forecast, SHAP values, test error). The numbers
-themselves always come from the model.
+With a Gemini key, the dashboard gets two extra features:
 
+- **AI explain** on the Next forecast card: rewrites the forecast and its
+  factor effects in plain English or Taglish.
+- **P-RICE Assistant** (the "Ask P-RICE" button, bottom right): a chatbot
+  that answers questions about the forecasts, past prices, factors, test
+  results and how to use the dashboard.
+
+Both only use numbers from the model's own files. The numbers always come
+from the model; Gemini only puts them into words.
+
+Setup:
 1. In `web/server`, copy `.env.example` to `.env`.
 2. Paste the key after `GEMINI_API_KEY=` (get one at https://aistudio.google.com/apikey).
 3. Check it: `npm run check:gemini`
-4. Restart the server (`npm start`). An "Explain with AI" button appears on the card.
+4. Restart the server (`npm start`).
 
-Never commit `.env`: it is already in `.gitignore`. Without a key, the
-dashboard works the same and simply hides the button.
+Without a key, the dashboard works the same and hides both features.
+
+How the assistant is kept safe and on-topic:
+
+| Layer | What it does |
+|---|---|
+| Key on the server only | The browser never sees the key; `.env` is in `.gitignore` |
+| Allowed origins | Only the dashboard itself can call the API from a browser (`ALLOWED_ORIGINS` in `.env` for a deployed site) |
+| Rate limit | 8 questions per minute and 60 per hour per user |
+| Input checks | Max 500 characters per question, last 12 messages only, 20 KB request limit |
+| Jailbreak filter | Requests for the prompt, keys, or to "ignore instructions" are refused without calling Gemini |
+| Scope rules | Answers only about P-RICE, rice prices in the data, the factors and the dashboard; no buying or investment advice |
+| Grounded answers | The server builds the facts from the model output; the bot must say "no data" instead of guessing |
+| Output check | Replies are shown as plain text (no HTML) and blocked if they contain anything that looks like a key |
 
 ## Troubleshooting
 

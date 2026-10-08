@@ -20,10 +20,16 @@ export const api = {
   future: (series) => getJSON(`${BASE}/future?series=${encodeURIComponent(series)}`),
   results: (freq) => getJSON(`${BASE}/results?freq=${freq}`),
   explainStatus: () => getJSON(`${BASE}/explain/status`),
-  explain: (series, horizon, lang) =>
+  explain: (series, horizon, lang, fresh = false) =>
     getJSON(`${BASE}/explain`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ series, horizon, lang }),
+      body: JSON.stringify({ series, horizon, lang, fresh }),
+    }),
+  chat: (messages, context) =>
+    getJSON(`${BASE}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages, context }),
     }),
 };
