@@ -14,3 +14,7 @@ Thumbs.db
 
 # Office lock files (created while a file is open in Excel/Word)
 ~$*
+
+# Downloads from update_data.py
+Model Development/data_pipeline/latest/
+Model Development/data_pipeline/build/

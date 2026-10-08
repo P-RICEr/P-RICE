@@ -427,6 +427,215 @@ app.get("/api/model-info", (req, res) => {
   }
 });
 
+// ---------- Full test results (Results tab) ----------
+//
+// Everything the notebook saves to Excel, for either the monthly or the
+// weekly run, so the website can show every evaluation table and chart.
+const RESULTS_FILES = {
+  monthly: { file: "P-RICE Results.xlsx", unit: "month" },
+  weekly: { file: "P-RICE Results (Weekly).xlsx", unit: "week" },
+};
+
+const fullResultsCache = new Map(); // freq -> { mtimeMs, data }
+
+function firstColumn(row) {
+  return row[""] ?? row["Unnamed: 0"] ?? row[Object.keys(row)[0]];
+}
+
+function loadFullResults(freq) {
+  const spec = RESULTS_FILES[freq];
+  if (!spec) throw new Error(`Unknown frequency "${freq}"`);
+  const file = path.join(MODEL_DIR, spec.file);
+  if (!fs.existsSync(file)) {
+    const err = new Error(
+      `${spec.file} not found. Run the ${freq} notebook (Run All) to create it.`
+    );
+    err.status = 404;
+    throw err;
+  }
+  const mtimeMs = fs.statSync(file).mtimeMs;
+  const cached = fullResultsCache.get(freq);
+  if (cached && cached.mtimeMs === mtimeMs) return cached.data;
+
+  const wb = XLSX.readFile(file, { cellDates: true });
+  const metrics = (r) => ({ mae: r.MAE, rmse: r.RMSE, mape: r["MAPE (%)"] });
+
+  const data = {
+    freq,
+    unit: spec.unit,
+    file: spec.file,
+    updatedAt: fs.statSync(file).mtime.toISOString(),
+    testSummary: readSheet(wb, "Test Summary").map((r) => ({
+      horizon: r.Horizon,
+      model: r.Model,
+      ...metrics(r),
+    })),
+    valTestSummary: readSheet(wb, "Val+Test Summary").map((r) => ({
+      horizon: r.Horizon,
+      set: r.Set,
+      model: r.Model,
+      ...metrics(r),
+    })),
+    byRiceType: readSheet(wb, "Test by Rice Type").map((r) => ({
+      horizon: r.Horizon,
+      series: r.Series,
+      model: r.Model,
+      ...metrics(r),
+    })),
+    horizonDecision: readSheet(wb, "Horizon Decision").map((r) => ({
+      horizon: r.Horizon,
+      xgboost: r.XGBoost,
+      arima: r.ARIMA,
+      naive: r.Naive,
+      beatsArima: r["Beats ARIMA"],
+      beatsNaive: r["Beats Naive"],
+      improvementVsArima: r["Improvement vs ARIMA (%)"],
+      improvementVsNaive: r["Improvement vs Naive (%)"],
+    })),
+    shapFactors: readSheet(wb, "SHAP Factors")
+      .map((r) => ({ factor: firstColumn(r), meanAbsShap: r["Mean |SHAP|"] }))
+      .filter((r) => r.factor),
+    bestSettings: readSheet(wb, "Best Settings").map((r) => {
+      const { [Object.keys(r)[0]]: horizon, ...params } = r;
+      return { horizon, ...params };
+    }),
+    arimaOrders: readSheet(wb, "ARIMA Orders").map((r) => ({
+      series: firstColumn(r),
+      order: r["ARIMA order"],
+    })),
+  };
+
+  // Label SHAP factors the same way the dashboard does.
+  for (const f of data.shapFactors) {
+    f.label = EXOGENOUS_COLUMNS[f.factor]?.label || f.factor;
+  }
+
+  fullResultsCache.set(freq, { mtimeMs, data });
+  return data;
+}
+
+// ---------- Extra analysis (ablation, Diebold-Mariano, future forecast) ----------
+//
+// Written by "P-RICE Extra Analysis (Monthly).ipynb". Optional: if the file
+// is missing, these parts of the website simply stay hidden.
+const EXTRA_XLSX = path.join(MODEL_DIR, "P-RICE Extra Results.xlsx");
+let extraCache = null;
+
+function loadExtraResults() {
+  if (!fs.existsSync(EXTRA_XLSX)) return null;
+  const mtimeMs = fs.statSync(EXTRA_XLSX).mtimeMs;
+  if (extraCache && extraCache.mtimeMs === mtimeMs) return extraCache.data;
+
+  const wb = XLSX.readFile(EXTRA_XLSX, { cellDates: true });
+  const data = {
+    ablation: readSheet(wb, "Ablation").map((r) => ({
+      horizon: r.Horizon,
+      priceOnlyMae: r["Price-only MAE"],
+      fullMae: r["Full model MAE"],
+      priceOnlyMape: r["Price-only MAPE (%)"],
+      fullMape: r["Full model MAPE (%)"],
+      factorsHelp: r["Factors help"],
+      reduction: r["MAE reduction from factors (%)"],
+    })),
+    dieboldMariano: readSheet(wb, "Diebold-Mariano").map((r) => ({
+      horizon: r.Horizon,
+      versus: r["XGBoost vs"],
+      months: r["Months tested"],
+      stat: r["DM statistic"],
+      pValue: r["p-value (one-sided)"],
+      sig5: r["Significant at 5%"],
+      sig10: r["Significant at 10%"],
+    })),
+    future: readSheet(wb, "Future Forecast").map((r) => ({
+      horizon: r.Horizon,
+      series: r.Series,
+      originDate: excelDateToISO(r.Origin_Date),
+      targetDate: excelDateToISO(r.Target_Date),
+      basePrice: r.Base_Price,
+      forecast: r.Forecast,
+      changePct: r["Change (%)"],
+      testMape: r["Test MAPE (%)"],
+    })),
+    futureShap: readSheet(wb, "Future SHAP").map((r) => ({
+      horizon: r.Horizon,
+      series: r.Series,
+      factor: r.Factor,
+      value: r["SHAP (PHP/kg)"],
+    })),
+    updatedAt: fs.statSync(EXTRA_XLSX).mtime.toISOString(),
+  };
+  extraCache = { mtimeMs, data };
+  return data;
+}
+
+// Plain-language reason list for one future forecast, built only from the
+// model's own SHAP values and the latest factor readings (no AI text).
+function explainFuture(series, horizon, extra) {
+  const snapshot = latestFactorSnapshot();
+  const rows = extra.futureShap
+    .filter((r) => r.series === series && r.horizon === horizon && Math.abs(r.value) >= 0.01)
+    .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+  return rows.slice(0, 4).map((r) => {
+    const meta = EXOGENOUS_COLUMNS[r.factor];
+    const snap = snapshot[r.factor];
+    return {
+      factor: r.factor,
+      label: meta?.label || r.factor,
+      effect: Math.round(r.value * 100) / 100, // PHP/kg pushed up (+) or down (-)
+      currentValue: snap?.currentValue ?? null,
+      unit: snap?.unit ?? null,
+      decimals: snap?.decimals ?? null,
+      trend: snap?.trend ?? null,
+    };
+  });
+}
+
+app.get("/api/future", (req, res) => {
+  try {
+    const extra = loadExtraResults();
+    if (!extra) return res.json({ available: false });
+    const series = req.query.series || "Local Special";
+    const horizons = [...new Set(extra.future.map((r) => r.horizon))].sort((a, b) => a - b);
+    // Only offer horizons where XGBoost beat both benchmarks on the test set.
+    const { horizonDecision } = loadResults();
+    const trusted = horizonDecision.filter((h) => h.beatsArima && h.beatsNaive).map((h) => h.horizon);
+    const rows = extra.future
+      .filter((r) => r.series === series && trusted.includes(r.horizon))
+      .sort((a, b) => a.horizon - b.horizon)
+      .map((r) => ({
+        ...r,
+        forecast: Math.round(r.forecast * 100) / 100,
+        basePrice: Math.round(r.basePrice * 100) / 100,
+        changePct: Math.round(r.changePct * 100) / 100,
+        confidence: confidenceFromMape(r.testMape),
+        reasons: explainFuture(series, r.horizon, extra),
+      }));
+    res.json({ available: true, series, horizons, trusted, rows, updatedAt: extra.updatedAt });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/results", (req, res) => {
+  try {
+    const freq = String(req.query.freq || "monthly");
+    const available = Object.entries(RESULTS_FILES)
+      .filter(([, s]) => fs.existsSync(path.join(MODEL_DIR, s.file)))
+      .map(([k]) => k);
+    const extra = freq === "monthly" ? loadExtraResults() : null;
+    res.json({
+      available,
+      ...loadFullResults(freq),
+      ablation: extra?.ablation ?? null,
+      dieboldMariano: extra?.dieboldMariano ?? null,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`P-RICE API running on http://localhost:${PORT}`);

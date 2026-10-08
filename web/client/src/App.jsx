@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
-import { Info, Sprout, Moon, Sun, LayoutGrid, Table2, BookOpen } from "lucide-react";
+import { Info, Moon, Sun, LayoutGrid, Table2, BookOpen, BarChart3 } from "lucide-react";
 import { api } from "./api";
 import RiceTypeSelector from "./components/RiceTypeSelector";
 import ForecastCard from "./components/ForecastCard";
 import TrendChart from "./components/TrendChart";
+import FutureForecast from "./components/FutureForecast";
 import ModelInfoPanel from "./components/ModelInfoPanel";
 import CompareTable from "./components/CompareTable";
 import AboutPage from "./components/AboutPage";
+import ResultsPage from "./components/ResultsPage";
 import {
   RiceTypeSelectorSkeleton,
   ForecastCardSkeleton,
@@ -52,7 +54,7 @@ function timeAgo(iso) {
 
 export default function App() {
   const [dark, setDark] = useDarkMode();
-  const [view, setView] = useState("dashboard"); // "dashboard" | "compare" | "about"
+  const [view, setView] = useState("dashboard"); // "dashboard" | "compare" | "results" | "about"
 
   const [seriesList, setSeriesList] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -111,6 +113,7 @@ export default function App() {
   const TABS = [
     { key: "dashboard", label: "Dashboard", Icon: LayoutGrid },
     { key: "compare", label: "Compare All", Icon: Table2 },
+    { key: "results", label: "Test Results", Icon: BarChart3 },
     { key: "about", label: "About", Icon: BookOpen },
   ];
 
@@ -119,34 +122,34 @@ export default function App() {
       <header className="border-b border-rice-100 bg-white dark:border-white/10 dark:bg-rice-900">
         <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center justify-between gap-3 sm:justify-start">
-            <div className="flex items-center gap-2">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-rice-800 text-white">
-                <Sprout className="h-5 w-5" />
-              </span>
-              <div>
-                <h1 className="text-lg font-extrabold text-rice-900 dark:text-white">P-RICE</h1>
-                <p className="text-xs text-rice-700/70 dark:text-rice-300/70">
-                  Philippine Rice Price Forecast Dashboard
-                </p>
-              </div>
+            <div className="flex items-center gap-3">
+              <h1 className="shrink-0">
+                <img src="/brand/logo-full.png" alt="P-RICE" className="h-10 w-auto dark:hidden" />
+                <img src="/brand/logo-full-dark.png" alt="P-RICE" className="hidden h-10 w-auto dark:block" />
+              </h1>
+              <p className="hidden border-l border-rice-100 pl-3 text-xs leading-tight text-rice-700/70 sm:block dark:border-white/10 dark:text-rice-300/70">
+                Philippine Rice Price
+                <br />
+                Forecast Dashboard
+              </p>
             </div>
 
             <button
               onClick={() => setDark(!dark)}
               title={dark ? "Switch to light mode" : "Switch to dark mode"}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-rice-100 text-rice-700 hover:bg-rice-50 sm:hidden dark:border-white/10 dark:text-rice-200 dark:hover:bg-white/10"
+              className="flex h-9 w-9 items-center justify-center rounded-full border focus:outline-none focus-visible:ring-2 focus-visible:ring-rice-500 border-rice-100 text-rice-700 hover:bg-rice-50 sm:hidden dark:border-white/10 dark:text-rice-200 dark:hover:bg-white/10"
             >
               {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <nav className="flex gap-1 rounded-full bg-rice-50 p-1 dark:bg-white/5">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <nav className="flex max-w-full gap-1 overflow-x-auto rounded-full bg-rice-50 p-1 dark:bg-white/5">
               {TABS.map(({ key, label, Icon }) => (
                 <button
                   key={key}
                   onClick={() => setView(key)}
-                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                  className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-rice-500 ${
                     view === key
                       ? "bg-rice-700 text-white shadow-sm"
                       : "text-rice-700 hover:bg-white dark:text-rice-200 dark:hover:bg-white/10"
@@ -158,24 +161,10 @@ export default function App() {
               ))}
             </nav>
 
-            {view !== "about" && (
-              <select
-                value={horizon}
-                onChange={(e) => setHorizon(Number(e.target.value))}
-                className="rounded-lg border border-rice-100 bg-white px-2 py-1.5 text-xs font-semibold text-rice-900 dark:border-white/10 dark:bg-white/5 dark:text-white"
-              >
-                {HORIZONS.map((h) => (
-                  <option key={h} value={h}>
-                    {h} month{h > 1 ? "s" : ""} ahead
-                  </option>
-                ))}
-              </select>
-            )}
-
             <button
               onClick={() => setDark(!dark)}
               title={dark ? "Switch to light mode" : "Switch to dark mode"}
-              className="hidden h-9 w-9 items-center justify-center rounded-full border border-rice-100 text-rice-700 hover:bg-rice-50 sm:flex dark:border-white/10 dark:text-rice-200 dark:hover:bg-white/10"
+              className="hidden h-9 w-9 items-center justify-center rounded-full border focus:outline-none focus-visible:ring-2 focus-visible:ring-rice-500 border-rice-100 text-rice-700 hover:bg-rice-50 sm:flex dark:border-white/10 dark:text-rice-200 dark:hover:bg-white/10"
             >
               {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
@@ -196,6 +185,8 @@ export default function App() {
 
       {view === "about" ? (
         <AboutPage />
+      ) : view === "results" ? (
+        <ResultsPage />
       ) : (
         <main className="mx-auto max-w-5xl space-y-6 px-4 py-6">
           {error && (
@@ -205,6 +196,26 @@ export default function App() {
                 Make sure the API server is running and that
                 "Model Development/P-RICE Results.xlsx" exists (run the notebook once first).
               </p>
+            </div>
+          )}
+
+          {(view === "dashboard" || view === "compare") && (
+            <div className="flex items-center justify-end gap-2">
+              <label htmlFor="horizon" className="text-xs font-semibold text-rice-700 dark:text-rice-300">
+                Forecast horizon
+              </label>
+              <select
+                id="horizon"
+                value={horizon}
+                onChange={(e) => setHorizon(Number(e.target.value))}
+                className="rounded-lg border border-rice-100 bg-white px-2 py-1.5 text-xs font-semibold text-rice-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-rice-500 dark:border-white/10 dark:bg-rice-900 dark:text-white"
+              >
+                {HORIZONS.map((h) => (
+                  <option key={h} value={h}>
+                    {h} month{h > 1 ? "s" : ""} ahead
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 
@@ -231,6 +242,7 @@ export default function App() {
                     onMoreDetails={() => setPanelOpen(true)}
                   />
                   <TrendChart history={forecast.history} seriesLabel={seriesLabel} dark={dark} />
+                  <FutureForecast series={selected} seriesLabel={seriesLabel} />
 
                   <div className="flex flex-col items-start gap-3 rounded-2xl border border-rice-100 bg-white p-4 text-sm text-rice-900/80 sm:flex-row dark:border-white/10 dark:bg-white/5 dark:text-rice-100/80">
                     <Info className="mt-0.5 h-5 w-5 shrink-0 text-rice-600 dark:text-rice-300" />
