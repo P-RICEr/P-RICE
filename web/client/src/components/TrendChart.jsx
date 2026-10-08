@@ -31,13 +31,16 @@ function CustomTooltip({ active, payload, label }) {
     <div className="rounded-lg border border-rice-100 bg-white px-3 py-2 text-xs shadow-md dark:border-white/10 dark:bg-rice-900">
       <p className="mb-1 font-semibold text-rice-900 dark:text-white">{formatTick(label)}</p>
       {payload.map((p) => (
-        <p key={p.dataKey} style={{ color: p.color }}>
+        <p key={p.dataKey} className="flex items-center gap-2 text-rice-900 dark:text-rice-100">
+          <span className="inline-block h-2 w-2 rounded-full" style={{ background: p.color }} />
           {p.name}: ₱{Number(p.value).toFixed(2)}
         </p>
       ))}
     </div>
   );
 }
+
+const legendText = (v) => <span className="text-rice-900 dark:text-rice-100">{v}</span>;
 
 export default function TrendChart({ history, seriesLabel, dark }) {
   const [range, setRange] = useState("1Y");
@@ -126,7 +129,7 @@ export default function TrendChart({ history, seriesLabel, dark }) {
       >
         <ResponsiveContainer width="100%" height={340}>
           <LineChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: -12 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={dark ? 0.15 : 0.5} />
+            <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={dark ? 0.15 : 0.2} />
             <XAxis dataKey="date" tickFormatter={formatTick} tick={{ fontSize: 12 }} stroke="currentColor" />
             <YAxis
               tick={{ fontSize: 12 }}
@@ -136,14 +139,14 @@ export default function TrendChart({ history, seriesLabel, dark }) {
               stroke="currentColor"
             />
             <Tooltip content={<CustomTooltip />} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Legend wrapperStyle={{ fontSize: 12 }} formatter={legendText} />
             <Line
               type="monotone"
               dataKey="actual"
               name="Actual Price"
               stroke="var(--p-rice-actual-stroke)"
               strokeWidth={2}
-              dot={{ r: 2 }}
+              dot={{ r: 2, fill: "var(--p-rice-actual-stroke)" }}
               connectNulls
               isAnimationActive
               animationDuration={800}
@@ -155,7 +158,7 @@ export default function TrendChart({ history, seriesLabel, dark }) {
               stroke="var(--p-rice-forecast-stroke)"
               strokeWidth={2}
               strokeDasharray="5 4"
-              dot={{ r: 3 }}
+              dot={{ r: 3, strokeDasharray: "0", fill: "var(--chart-surface)" }}
               connectNulls={false}
               isAnimationActive
               animationDuration={800}
