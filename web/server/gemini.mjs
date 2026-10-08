@@ -24,16 +24,25 @@ export function loadEnv(file = path.join(__dirname, ".env")) {
   }
 }
 
+// Tried in order when GEMINI_MODEL is not available to this key
+// (Google retires older models for new accounts).
+const FALLBACK_MODELS = [
+  "gemini-flash-latest",
+  "gemini-3-flash-preview",
+  "gemini-3.1-flash-lite",
+  "gemini-flash-lite-latest",
+  "gemini-2.5-flash-lite",
+];
+let workingModel = null; // remembered after the first successful call
+
 export function geminiConfig() {
   return {
     key: process.env.GEMINI_API_KEY || "",
-    model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+    model: workingModel || process.env.GEMINI_MODEL || FALLBACK_MODELS[0],
   };
 }
 
-export async function callGemini(prompt, { temperature = 0.3, maxTokens = 400 } = {}) {
-  const { key, model } = geminiConfig();
-  if (!key) throw new Error("GEMINI_API_KEY is not set in web/server/.env");
+async function generate(model, key, prompt, temperature, maxTokens) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const res = await fetch(url, {
     method: "POST",
@@ -43,19 +52,46 @@ export async function callGemini(prompt, { temperature = 0.3, maxTokens = 400 } 
       generationConfig: {
         temperature,
         maxOutputTokens: maxTokens,
-        // Gemini 2.5 Flash "thinks" by default; turn it off so the reply is fast.
-        ...(model.includes("2.5-flash") ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+        // 2.5 Flash "thinks" by default; turn it off so the reply is fast.
+        ...(model.startsWith("gemini-2.5-flash") ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
       },
     }),
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(45000),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(`Gemini ${res.status}: ${body?.error?.message || res.statusText}`);
+    const err = new Error(`Gemini ${res.status} (${model}): ${body?.error?.message || res.statusText}`);
+    err.status = res.status;
+    throw err;
   }
-  const text = (body.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("").trim();
-  if (!text) throw new Error("Gemini returned no text");
-  return { text, model };
+  const text = (body.candidates?.[0]?.content?.parts || [])
+    .filter((p) => !p.thought)
+    .map((p) => p.text || "")
+    .join("")
+    .trim();
+  if (!text) throw new Error(`Gemini (${model}) returned no text`);
+  return text;
+}
+
+export async function callGemini(prompt, { temperature = 0.3, maxTokens = 2048 } = {}) {
+  const { key } = geminiConfig();
+  if (!key) throw new Error("GEMINI_API_KEY is not set in web/server/.env");
+  const first = workingModel || process.env.GEMINI_MODEL;
+  const candidates = [...new Set([first, ...FALLBACK_MODELS].filter(Boolean))];
+  let lastError;
+  for (const model of candidates) {
+    try {
+      const text = await generate(model, key, prompt, temperature, maxTokens);
+      workingModel = model;
+      return { text, model };
+    } catch (e) {
+      lastError = e;
+      // Only move on when the model itself is unavailable; a bad key or
+      // quota error would fail the same way on every model.
+      if (![400, 404].includes(e.status) || /api key/i.test(e.message)) throw e;
+    }
+  }
+  throw lastError;
 }
 
 function monthYear(iso) {
