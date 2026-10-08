@@ -24,6 +24,25 @@ body {
   --p-rice-forecast-stroke: #f87171;
 }
 
+/* Results tab: one fixed color per model (identity, never rank).
+   Validated as a 3-slot categorical set on white (light) and on
+   rice-900 (dark): CVD dE >= 9.2, normal-vision dE >= 20.9. */
+:root {
+  --p-rice-xgb: #2a78d6;
+  --p-rice-arima: #eb6834;
+  --p-rice-naive: #1baf7a;
+  --p-rice-shap: #2f8047;
+  --chart-surface: #ffffff;
+}
+
+.dark {
+  --p-rice-xgb: #3987e5;
+  --p-rice-arima: #d95926;
+  --p-rice-naive: #199e70;
+  --p-rice-shap: #3f9c58;
+  --chart-surface: #12351f;
+}
+
 /* Recharts renders axis ticks and legend labels as SVG <text>, which is
    colored via `fill`, not `stroke` -- Tailwind's text-* classes set
    `color`, so this makes that inherited color apply to the SVG text too. */

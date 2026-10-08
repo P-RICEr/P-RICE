@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Info, Sprout, Moon, Sun, LayoutGrid, Table2, BookOpen } from "lucide-react";
+import { Info, Sprout, Moon, Sun, LayoutGrid, Table2, BookOpen, BarChart3 } from "lucide-react";
 import { api } from "./api";
 import RiceTypeSelector from "./components/RiceTypeSelector";
 import ForecastCard from "./components/ForecastCard";
@@ -7,6 +7,7 @@ import TrendChart from "./components/TrendChart";
 import ModelInfoPanel from "./components/ModelInfoPanel";
 import CompareTable from "./components/CompareTable";
 import AboutPage from "./components/AboutPage";
+import ResultsPage from "./components/ResultsPage";
 import {
   RiceTypeSelectorSkeleton,
   ForecastCardSkeleton,
@@ -52,7 +53,7 @@ function timeAgo(iso) {
 
 export default function App() {
   const [dark, setDark] = useDarkMode();
-  const [view, setView] = useState("dashboard"); // "dashboard" | "compare" | "about"
+  const [view, setView] = useState("dashboard"); // "dashboard" | "compare" | "results" | "about"
 
   const [seriesList, setSeriesList] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -111,6 +112,7 @@ export default function App() {
   const TABS = [
     { key: "dashboard", label: "Dashboard", Icon: LayoutGrid },
     { key: "compare", label: "Compare All", Icon: Table2 },
+    { key: "results", label: "Test Results", Icon: BarChart3 },
     { key: "about", label: "About", Icon: BookOpen },
   ];
 
@@ -140,13 +142,13 @@ export default function App() {
             </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <nav className="flex gap-1 rounded-full bg-rice-50 p-1 dark:bg-white/5">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <nav className="flex max-w-full gap-1 overflow-x-auto rounded-full bg-rice-50 p-1 dark:bg-white/5">
               {TABS.map(({ key, label, Icon }) => (
                 <button
                   key={key}
                   onClick={() => setView(key)}
-                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                  className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                     view === key
                       ? "bg-rice-700 text-white shadow-sm"
                       : "text-rice-700 hover:bg-white dark:text-rice-200 dark:hover:bg-white/10"
@@ -158,7 +160,7 @@ export default function App() {
               ))}
             </nav>
 
-            {view !== "about" && (
+            {(view === "dashboard" || view === "compare") && (
               <select
                 value={horizon}
                 onChange={(e) => setHorizon(Number(e.target.value))}
@@ -196,6 +198,8 @@ export default function App() {
 
       {view === "about" ? (
         <AboutPage />
+      ) : view === "results" ? (
+        <ResultsPage />
       ) : (
         <main className="mx-auto max-w-5xl space-y-6 px-4 py-6">
           {error && (

@@ -427,6 +427,106 @@ app.get("/api/model-info", (req, res) => {
   }
 });
 
+// ---------- Full test results (Results tab) ----------
+//
+// Everything the notebook saves to Excel, for either the monthly or the
+// weekly run, so the website can show every evaluation table and chart.
+const RESULTS_FILES = {
+  monthly: { file: "P-RICE Results.xlsx", unit: "month" },
+  weekly: { file: "P-RICE Results (Weekly).xlsx", unit: "week" },
+};
+
+const fullResultsCache = new Map(); // freq -> { mtimeMs, data }
+
+function firstColumn(row) {
+  return row[""] ?? row["Unnamed: 0"] ?? row[Object.keys(row)[0]];
+}
+
+function loadFullResults(freq) {
+  const spec = RESULTS_FILES[freq];
+  if (!spec) throw new Error(`Unknown frequency "${freq}"`);
+  const file = path.join(MODEL_DIR, spec.file);
+  if (!fs.existsSync(file)) {
+    const err = new Error(
+      `${spec.file} not found. Run the ${freq} notebook (Run All) to create it.`
+    );
+    err.status = 404;
+    throw err;
+  }
+  const mtimeMs = fs.statSync(file).mtimeMs;
+  const cached = fullResultsCache.get(freq);
+  if (cached && cached.mtimeMs === mtimeMs) return cached.data;
+
+  const wb = XLSX.readFile(file, { cellDates: true });
+  const metrics = (r) => ({ mae: r.MAE, rmse: r.RMSE, mape: r["MAPE (%)"] });
+
+  const data = {
+    freq,
+    unit: spec.unit,
+    file: spec.file,
+    updatedAt: fs.statSync(file).mtime.toISOString(),
+    testSummary: readSheet(wb, "Test Summary").map((r) => ({
+      horizon: r.Horizon,
+      model: r.Model,
+      ...metrics(r),
+    })),
+    valTestSummary: readSheet(wb, "Val+Test Summary").map((r) => ({
+      horizon: r.Horizon,
+      set: r.Set,
+      model: r.Model,
+      ...metrics(r),
+    })),
+    byRiceType: readSheet(wb, "Test by Rice Type").map((r) => ({
+      horizon: r.Horizon,
+      series: r.Series,
+      model: r.Model,
+      ...metrics(r),
+    })),
+    horizonDecision: readSheet(wb, "Horizon Decision").map((r) => ({
+      horizon: r.Horizon,
+      xgboost: r.XGBoost,
+      arima: r.ARIMA,
+      naive: r.Naive,
+      beatsArima: r["Beats ARIMA"],
+      beatsNaive: r["Beats Naive"],
+      improvementVsArima: r["Improvement vs ARIMA (%)"],
+      improvementVsNaive: r["Improvement vs Naive (%)"],
+    })),
+    shapFactors: readSheet(wb, "SHAP Factors")
+      .map((r) => ({ factor: firstColumn(r), meanAbsShap: r["Mean |SHAP|"] }))
+      .filter((r) => r.factor),
+    bestSettings: readSheet(wb, "Best Settings").map((r) => {
+      const { [Object.keys(r)[0]]: horizon, ...params } = r;
+      return { horizon, ...params };
+    }),
+    arimaOrders: readSheet(wb, "ARIMA Orders").map((r) => ({
+      series: firstColumn(r),
+      order: r["ARIMA order"],
+    })),
+  };
+
+  // Label SHAP factors the same way the dashboard does.
+  for (const f of data.shapFactors) {
+    f.label = EXOGENOUS_COLUMNS[f.factor]?.label || f.factor;
+  }
+
+  fullResultsCache.set(freq, { mtimeMs, data });
+  return data;
+}
+
+app.get("/api/results", (req, res) => {
+  try {
+    const freq = String(req.query.freq || "monthly");
+    const available = Object.entries(RESULTS_FILES)
+      .filter(([, s]) => fs.existsSync(path.join(MODEL_DIR, s.file)))
+      .map(([k]) => k);
+    res.json({ available, ...loadFullResults(freq) });
+  } catch (err) {
+    console.error(err);
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`P-RICE API running on http://localhost:${PORT}`);
