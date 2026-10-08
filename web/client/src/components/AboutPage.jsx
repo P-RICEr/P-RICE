@@ -1,4 +1,4 @@
-import { Sprout, Target, Users, GraduationCap } from "lucide-react";
+import { Target, Users, GraduationCap } from "lucide-react";
 
 const SDGS = [
   {
@@ -39,10 +39,10 @@ export default function AboutPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
       <div className="text-center">
-        <span className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-rice-800 text-white">
-          <Sprout className="h-7 w-7" />
-        </span>
-        <h1 className="text-2xl font-extrabold text-rice-900 dark:text-white">P-RICE</h1>
+        <h1 className="mb-3">
+          <img src="/brand/logo-full.png" alt="P-RICE" className="mx-auto h-24 w-auto dark:hidden" />
+          <img src="/brand/logo-full-dark.png" alt="P-RICE" className="mx-auto hidden h-24 w-auto dark:block" />
+        </h1>
         <p className="mt-1 text-sm text-rice-700 dark:text-rice-300">
           An XGBoost Regression Based Model for Philippine Rice Price Forecasting
         </p>

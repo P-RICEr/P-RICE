@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Info, Sprout, Moon, Sun, LayoutGrid, Table2, BookOpen, BarChart3 } from "lucide-react";
+import { Info, Moon, Sun, LayoutGrid, Table2, BookOpen, BarChart3 } from "lucide-react";
 import { api } from "./api";
 import RiceTypeSelector from "./components/RiceTypeSelector";
 import ForecastCard from "./components/ForecastCard";
@@ -122,16 +122,16 @@ export default function App() {
       <header className="border-b border-rice-100 bg-white dark:border-white/10 dark:bg-rice-900">
         <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center justify-between gap-3 sm:justify-start">
-            <div className="flex items-center gap-2">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-rice-800 text-white">
-                <Sprout className="h-5 w-5" />
-              </span>
-              <div>
-                <h1 className="text-lg font-extrabold text-rice-900 dark:text-white">P-RICE</h1>
-                <p className="text-xs text-rice-700/70 dark:text-rice-300/70">
-                  Philippine Rice Price Forecast Dashboard
-                </p>
-              </div>
+            <div className="flex items-center gap-3">
+              <h1 className="shrink-0">
+                <img src="/brand/logo-full.png" alt="P-RICE" className="h-10 w-auto dark:hidden" />
+                <img src="/brand/logo-full-dark.png" alt="P-RICE" className="hidden h-10 w-auto dark:block" />
+              </h1>
+              <p className="hidden border-l border-rice-100 pl-3 text-xs leading-tight text-rice-700/70 sm:block dark:border-white/10 dark:text-rice-300/70">
+                Philippine Rice Price
+                <br />
+                Forecast Dashboard
+              </p>
             </div>
 
             <button
