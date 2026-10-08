@@ -15,10 +15,10 @@ What it downloads (no API keys needed):
      parameters as the paper: PRECTOTCORR and T2M at 14.5995 N, 120.9842 E)
   3. Rice stocks inventory (PSA OpenSTAT table 0032E4ECNV0)
   4. Volume of palay production (PSA OpenSTAT table 0012E4EVCP0)
+  5. Palay farmgate price (found by searching PSA OpenSTAT)
 
 What it does NOT download (still manual, see README_DATA_PIPELINE.md):
   - Weekly retail rice prices (DA Price Monitoring PDFs)
-  - Farmgate price (PSA price situationer / FAOSTAT)
   - Inflation and exchange rate (BSP .xls files)
 
 Everything is saved in the "latest" folder next to this script. The model's
@@ -142,7 +142,7 @@ def fetch_nasa_daily(start=START, end=None):
     )
     resp = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
     resp.raise_for_status()
-    params = resp.json()["properties"]["parameter"]
+    params = read_json(resp)["properties"]["parameter"]
     df = pd.DataFrame({
         "Rainfall_mm": pd.Series(params["PRECTOTCORR"]),
         "Temp_C": pd.Series(params["T2M"]),
@@ -210,9 +210,16 @@ def fetch_openstat(db, folder, table):
         raise RuntimeError("table not found at: " + " | ".join(tried))
     say(f"     found at {url}")
     variables = read_json(meta)["variables"]
+    return download_openstat(url, variables)
 
+
+def download_openstat(url, variables, only=None):
+    """only: {variable code: [value codes]} to download part of a table."""
+    only = only or {}
     query = {
-        "query": [{"code": v["code"], "selection": {"filter": "all", "values": ["*"]}}
+        "query": [{"code": v["code"],
+                   "selection": ({"filter": "item", "values": only[v["code"]]} if v["code"] in only
+                                 else {"filter": "all", "values": ["*"]})}
                   for v in variables],
         "response": {"format": "json"},
     }
@@ -234,6 +241,42 @@ def fetch_openstat(db, folder, table):
             row[col["text"]] = pd.to_numeric(value, errors="coerce")  # ".." = missing
         rows.append(row)
     return pd.DataFrame(rows), [v["text"] for v in variables]
+
+
+def search_openstat(text, db="DB"):
+    """Search OpenSTAT table titles. Returns a list of {id, path, title}."""
+    url = f"{OPENSTAT_API}{db}?query={requests.utils.quote(text)}"
+    r = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+    r.raise_for_status()
+    return read_json(r)
+
+
+def fetch_farmgate():
+    """Find the palay farmgate price table by searching OpenSTAT, then
+    download it the same way as the other tables."""
+    hits = search_openstat("farmgate palay")
+    hits = [h for h in hits
+            if "farmgate" in h.get("title", "").lower() and "palay" in h.get("title", "").lower()]
+    if not hits:
+        raise RuntimeError("no OpenSTAT table with 'farmgate' and 'palay' in its title")
+    pd.DataFrame(hits).to_csv(OUT / "openstat_farmgate_search.csv", index=False)
+    # Prefer a monthly table if the title says so.
+    hits.sort(key=lambda h: ("month" not in h["title"].lower(), -h.get("score", 0)))
+    best = hits[0]
+    path = best["path"].strip("/").split("/")
+    say(f"     table: {best['title']}")
+    url = f"{OPENSTAT_API}DB/{'/'.join(path)}/{best['id']}"
+    meta = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+    meta.raise_for_status()
+    variables = read_json(meta)["variables"]
+    say(f"     found at {url}")
+    # National figures only (keeps the download under OpenSTAT's size limit).
+    only = {}
+    for v in variables:
+        texts = [t.upper() for t in v.get("valueTexts", v["values"])]
+        if any("PHILIPPINES" == t.strip(". ") for t in texts):
+            only[v["code"]] = [c for c, t in zip(v["values"], texts) if t.strip(". ") == "PHILIPPINES"]
+    return download_openstat(url, variables, only)
 
 
 # ------------------------------------------------------------ checking
@@ -279,7 +322,7 @@ def main():
     summary, failed = [], []
     weekly, brent = None, None
 
-    say("1/4  Brent crude oil (FRED, or EIA if FRED is blocked)")
+    say("1/5  Brent crude oil (FRED, or EIA if FRED is blocked)")
     try:
         brent, source = fetch_brent(args.start)
         say(f"     from {source}")
@@ -288,7 +331,7 @@ def main():
     except Exception as e:
         failed.append(("Brent oil (FRED and EIA)", e))
 
-    say("2/4  Rainfall and temperature (NASA POWER)")
+    say("2/5  Rainfall and temperature (NASA POWER)")
     try:
         daily = fetch_nasa_daily(args.start)
         weekly = nasa_weekly(daily)
@@ -302,7 +345,7 @@ def main():
         failed.append(("Rainfall and temperature (NASA POWER)", e))
 
     for i, (name, table) in enumerate(OPENSTAT_TABLES.items(), start=3):
-        say(f"{i}/4  {name.replace('_', ' ')} (PSA OpenSTAT)")
+        say(f"{i}/5  {name.replace('_', ' ')} (PSA OpenSTAT)")
         try:
             df, var_names = fetch_openstat(*table)
             df.to_csv(OUT / f"openstat_{name}.csv", index=False)
@@ -311,6 +354,15 @@ def main():
                             f"openstat_{name}.csv"))
         except Exception as e:
             failed.append((f"{name} (OpenSTAT)", e))
+
+    say("5/5  palay farmgate price (PSA OpenSTAT search)")
+    try:
+        df, var_names = fetch_farmgate()
+        df.to_csv(OUT / "openstat_farmgate.csv", index=False)
+        say(f"     variables: {', '.join(var_names)}")
+        summary.append(("Palay farmgate price", f"{len(df)} rows", "openstat_farmgate.csv"))
+    except Exception as e:
+        failed.append(("palay farmgate price (OpenSTAT)", e))
 
     say()
     say("=" * 70)
