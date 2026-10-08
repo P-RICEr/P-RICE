@@ -120,8 +120,26 @@ def farmgate():
         df = pd.read_csv(manual)
         return (month_series(df["Date"], df["Farmgate_PHP_kg"] * 1000, "Farmgate_LCU_tonne"),
                 "sources/farmgate_monthly.csv (PHP/kg x 1000)")
+    downloaded = LATEST / "openstat_farmgate.csv"
+    if downloaded.exists():
+        df = pd.read_csv(downloaded)
+        value = df.columns[-1]
+        period = next(c for c in df.columns if c.lower() in ("period", "month"))
+        commodity = next((c for c in df.columns if "commodity" in c.lower()), None)
+        df = df[df[period].astype(str).str.strip().isin(MONTHS)].dropna(subset=[value])
+        label = "palay"
+        if commodity:
+            # One palay series: prefer "Other Variety" (ordinary palay), else the first one.
+            names = list(df[commodity].unique())
+            pick = next((n for n in names if "OTHER" in str(n).upper()), names[0])
+            df = df[df[commodity] == pick]
+            label = pick
+        dates = pd.to_datetime(df["Year"].astype(int).astype(str) + "-"
+                               + df[period].str.strip().map(lambda m: MONTHS.index(m) + 1).astype(str) + "-01")
+        return (month_series(dates, df[value] * 1000, "Farmgate_LCU_tonne"),
+                f"PSA OpenSTAT ({label}, PHP/kg x 1000)")
     raise FileNotFoundError(
-        "no farmgate source yet: run update_data.py (step 5/5) or add sources/farmgate_monthly.csv")
+        "no farmgate source yet: run update_data.py --only farmgate, or add sources/farmgate_monthly.csv")
 
 
 # ---------------------------------------------------------------- build
