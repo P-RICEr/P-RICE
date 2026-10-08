@@ -28,7 +28,7 @@ export default function RiceTypeSelector({ series, selected, onSelect }) {
               }`}
             >
               <Wheat
-                className={`h-4 w-4 ${active ? "text-white" : "text-rice-700 dark:text-rice-200"}`}
+                className={`h-4 w-4 ${active ? "text-white" : "text-rice-700 dark:text-white"}`}
               />
               <span
                 className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ${

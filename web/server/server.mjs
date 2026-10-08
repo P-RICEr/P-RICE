@@ -13,6 +13,20 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import XLSX from "xlsx";
+import { loadEnv, geminiConfig, callGemini, streamGemini, buildExplainPrompt } from "./gemini.mjs";
+import {
+  rateLimit,
+  cleanMessages,
+  quickGuard,
+  guessLang,
+  buildFacts,
+  cleanReply,
+  isUnsafe,
+  BLOCKED_REPLY,
+  CHAT_RULES,
+} from "./chat.mjs";
+
+loadEnv();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -286,8 +300,31 @@ function confidenceFromMape(mape) {
 // ---------- API ----------
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+app.disable("x-powered-by");
+
+// Only the dashboard itself may call this API from a browser.
+// Add your deployed site to ALLOWED_ORIGINS in .env (comma-separated).
+const ALLOWED_ORIGINS = (
+  process.env.ALLOWED_ORIGINS ||
+  "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173"
+)
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+app.use(
+  cors({
+    origin: (origin, cb) => cb(null, !origin || ALLOWED_ORIGINS.includes(origin)),
+  })
+);
+app.use((req, res, next) => {
+  res.set({
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+  });
+  next();
+});
+app.use(express.json({ limit: "20kb" }));
 
 function resultsLastUpdated() {
   if (!fs.existsSync(RESULTS_XLSX)) return null;
@@ -590,30 +627,166 @@ function explainFuture(series, horizon, extra) {
   });
 }
 
+function futureRows(series) {
+  const extra = loadExtraResults();
+  if (!extra) return null;
+  const horizons = [...new Set(extra.future.map((r) => r.horizon))].sort((a, b) => a - b);
+  // Only offer horizons where XGBoost beat both benchmarks on the test set.
+  const { horizonDecision } = loadResults();
+  const trusted = horizonDecision.filter((h) => h.beatsArima && h.beatsNaive).map((h) => h.horizon);
+  const rows = extra.future
+    .filter((r) => r.series === series && trusted.includes(r.horizon))
+    .sort((a, b) => a.horizon - b.horizon)
+    .map((r) => ({
+      ...r,
+      forecast: Math.round(r.forecast * 100) / 100,
+      basePrice: Math.round(r.basePrice * 100) / 100,
+      changePct: Math.round(r.changePct * 100) / 100,
+      confidence: confidenceFromMape(r.testMape),
+      reasons: explainFuture(series, r.horizon, extra),
+    }));
+  return { horizons, trusted, rows, updatedAt: extra.updatedAt };
+}
+
 app.get("/api/future", (req, res) => {
   try {
-    const extra = loadExtraResults();
-    if (!extra) return res.json({ available: false });
     const series = req.query.series || "Local Special";
-    const horizons = [...new Set(extra.future.map((r) => r.horizon))].sort((a, b) => a - b);
-    // Only offer horizons where XGBoost beat both benchmarks on the test set.
-    const { horizonDecision } = loadResults();
-    const trusted = horizonDecision.filter((h) => h.beatsArima && h.beatsNaive).map((h) => h.horizon);
-    const rows = extra.future
-      .filter((r) => r.series === series && trusted.includes(r.horizon))
-      .sort((a, b) => a.horizon - b.horizon)
-      .map((r) => ({
-        ...r,
-        forecast: Math.round(r.forecast * 100) / 100,
-        basePrice: Math.round(r.basePrice * 100) / 100,
-        changePct: Math.round(r.changePct * 100) / 100,
-        confidence: confidenceFromMape(r.testMape),
-        reasons: explainFuture(series, r.horizon, extra),
-      }));
-    res.json({ available: true, series, horizons, trusted, rows, updatedAt: extra.updatedAt });
+    const data = futureRows(series);
+    if (!data) return res.json({ available: false });
+    res.json({ available: true, series, ...data });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ---- Optional Gemini features (explainer + chatbot) ----
+const explainCache = new Map();
+
+// Gemini error text can include model names and Google's wording; keep it
+// in the server log and send the browser something short and safe.
+function publicAiError(err) {
+  if (/busy/i.test(err.message)) return "The AI is busy right now. Please try again in a minute.";
+  if (/not set/i.test(err.message)) return "AI features are turned off on this server.";
+  if (err.message === "blocked") return "The AI could not answer that. Please rephrase your question.";
+  return "The AI is not available right now. Please try again later.";
+}
+
+app.get("/api/explain/status", (req, res) => {
+  res.json({ enabled: Boolean(geminiConfig().key) });
+});
+
+app.post("/api/explain", rateLimit, async (req, res) => {
+  try {
+    const series = String(req.body?.series || "");
+    if (!RICE_FILES[series]) return res.status(400).json({ error: "Unknown rice type" });
+    const horizon = Number(req.body?.horizon);
+    const lang = req.body?.lang === "tl" ? "tl" : "en";
+    const data = futureRows(series);
+    const row = data?.rows.find((r) => r.horizon === horizon);
+    if (!row) return res.status(404).json({ error: "No forecast for that rice type and month" });
+
+    const cacheKey = `${series}|${horizon}|${lang}|${data.updatedAt}`;
+    if (!req.body?.fresh && explainCache.has(cacheKey)) {
+      return res.json({ ...explainCache.get(cacheKey), cached: true });
+    }
+
+    const out = await callGemini(buildExplainPrompt(series, row, lang), { temperature: 0.5 });
+    const result = { text: cleanReply(out.text), model: out.model, lang };
+    explainCache.set(cacheKey, result);
+    res.json(result);
+  } catch (err) {
+    console.error("Gemini (explain):", err.message);
+    res.status(502).json({ error: publicAiError(err) });
+  }
+});
+
+// FACTS for the chatbot, rebuilt only when the model output files change.
+let factsCache = { key: null, text: "" };
+function chatFacts() {
+  const extra = loadExtraResults();
+  const key = `${resultsLastUpdated()}|${extra?.updatedAt}`;
+  if (factsCache.key === key) return factsCache.text;
+  const series = Object.keys(RICE_FILES);
+  const text = buildFacts({
+    series,
+    monthlyActual: (s) => getMonthlyActual(s),
+    results: loadResults(),
+    extra,
+    future: (s) => futureRows(s),
+    snapshot: latestFactorSnapshot(),
+  });
+  factsCache = { key, text };
+  return text;
+}
+
+app.post("/api/chat", rateLimit, async (req, res) => {
+  let messages;
+  try {
+    messages = cleanMessages(req.body?.messages);
+  } catch (e) {
+    return res.status(400).json({ error: e.message });
+  }
+  const question = messages.at(-1).text;
+  const lang = guessLang(question);
+
+  const guarded = quickGuard(question, lang);
+  if (guarded) return res.json({ text: guarded, guarded: true });
+
+  if (!geminiConfig().key) return res.status(503).json({ error: "AI features are turned off on this server." });
+
+  // The rice type open on the dashboard, only if it is one we know.
+  const viewing = RICE_FILES[req.body?.context?.series] ? req.body.context.series : null;
+
+  try {
+    const system =
+      CHAT_RULES +
+      (viewing ? `\n\nThe user is currently viewing: ${viewing} rice.` : "") +
+      "\n\nFACTS (from the P-RICE model output; the only source of numbers)\n" +
+      chatFacts();
+    const contents = messages.map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.text }],
+    }));
+
+    // Stream the answer as it is written (one JSON object per line), so the
+    // first words show up in a second or two instead of after the whole reply.
+    let full = "";
+    let started = false;
+    const start = () => {
+      if (started) return;
+      started = true;
+      res.status(200).set({
+        "Content-Type": "application/x-ndjson; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "X-Accel-Buffering": "no",
+      });
+      res.flushHeaders();
+    };
+    const send = (obj) => res.write(JSON.stringify(obj) + "\n");
+
+    for await (const piece of streamGemini({ system, contents }, { temperature: 0.2 })) {
+      start();
+      full += piece;
+      if (isUnsafe(full)) {
+        // Output check failed mid-answer: replace everything sent so far.
+        send({ replace: BLOCKED_REPLY });
+        send({ done: true });
+        return res.end();
+      }
+      send({ delta: piece });
+      if (full.length > 2500) break;
+    }
+    start();
+    send({ done: true });
+    res.end();
+  } catch (err) {
+    console.error("Gemini (chat):", err.message);
+    if (res.headersSent) {
+      res.write(JSON.stringify({ error: publicAiError(err) }) + "\n");
+      return res.end();
+    }
+    res.status(502).json({ error: publicAiError(err) });
   }
 });
 
@@ -640,6 +813,11 @@ const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`P-RICE API running on http://localhost:${PORT}`);
   console.log(`Reading model output from: ${RESULTS_XLSX}`);
+  console.log(
+    geminiConfig().key
+      ? `Gemini AI (explainer + assistant): on, first model ${geminiConfig().model}`
+      : "Gemini AI: off (no GEMINI_API_KEY in web/server/.env)"
+  );
   if (!fs.existsSync(RESULTS_XLSX)) {
     console.warn(
       `WARNING: ${RESULTS_XLSX} not found yet. Run the notebook (Run All) first.`

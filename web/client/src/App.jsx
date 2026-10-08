@@ -5,6 +5,7 @@ import RiceTypeSelector from "./components/RiceTypeSelector";
 import ForecastCard from "./components/ForecastCard";
 import TrendChart from "./components/TrendChart";
 import FutureForecast from "./components/FutureForecast";
+import ChatAssistant from "./components/ChatAssistant";
 import ModelInfoPanel from "./components/ModelInfoPanel";
 import CompareTable from "./components/CompareTable";
 import AboutPage from "./components/AboutPage";
@@ -127,7 +128,7 @@ export default function App() {
                 <img src="/brand/logo-full.png" alt="P-RICE" className="h-10 w-auto dark:hidden" />
                 <img src="/brand/logo-full-dark.png" alt="P-RICE" className="hidden h-10 w-auto dark:block" />
               </h1>
-              <p className="hidden border-l border-rice-100 pl-3 text-xs leading-tight text-rice-700/70 sm:block dark:border-white/10 dark:text-rice-300/70">
+              <p className="hidden border-l border-rice-100 pl-3 text-xs leading-tight text-rice-700/70 sm:block dark:border-white/10 dark:text-white">
                 Philippine Rice Price
                 <br />
                 Forecast Dashboard
@@ -137,7 +138,7 @@ export default function App() {
             <button
               onClick={() => setDark(!dark)}
               title={dark ? "Switch to light mode" : "Switch to dark mode"}
-              className="flex h-9 w-9 items-center justify-center rounded-full border focus:outline-none focus-visible:ring-2 focus-visible:ring-rice-500 border-rice-100 text-rice-700 hover:bg-rice-50 sm:hidden dark:border-white/10 dark:text-rice-200 dark:hover:bg-white/10"
+              className="flex h-9 w-9 items-center justify-center rounded-full border focus:outline-none focus-visible:ring-2 focus-visible:ring-rice-500 border-rice-100 text-rice-700 hover:bg-rice-50 sm:hidden dark:border-white/10 dark:text-white dark:hover:bg-white/10"
             >
               {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
@@ -152,7 +153,7 @@ export default function App() {
                   className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-rice-500 ${
                     view === key
                       ? "bg-rice-700 text-white shadow-sm"
-                      : "text-rice-700 hover:bg-white dark:text-rice-200 dark:hover:bg-white/10"
+                      : "text-rice-700 hover:bg-white dark:text-white dark:hover:bg-white/10"
                   }`}
                 >
                   <Icon className="h-3.5 w-3.5" />
@@ -164,7 +165,7 @@ export default function App() {
             <button
               onClick={() => setDark(!dark)}
               title={dark ? "Switch to light mode" : "Switch to dark mode"}
-              className="hidden h-9 w-9 items-center justify-center rounded-full border focus:outline-none focus-visible:ring-2 focus-visible:ring-rice-500 border-rice-100 text-rice-700 hover:bg-rice-50 sm:flex dark:border-white/10 dark:text-rice-200 dark:hover:bg-white/10"
+              className="hidden h-9 w-9 items-center justify-center rounded-full border focus:outline-none focus-visible:ring-2 focus-visible:ring-rice-500 border-rice-100 text-rice-700 hover:bg-rice-50 sm:flex dark:border-white/10 dark:text-white dark:hover:bg-white/10"
             >
               {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
@@ -172,7 +173,7 @@ export default function App() {
         </div>
 
         {meta?.resultsUpdatedAt && (
-          <div className="border-t border-rice-100/70 bg-rice-50/60 px-4 py-1.5 text-center text-[11px] text-rice-700/80 dark:border-white/5 dark:bg-white/5 dark:text-rice-300/80">
+          <div className="border-t border-rice-100/70 bg-rice-50/60 px-4 py-1.5 text-center text-[11px] text-rice-700/80 dark:border-white/5 dark:bg-white/5 dark:text-white">
             Model results last updated {timeAgo(meta.resultsUpdatedAt)} (
             {new Date(meta.resultsUpdatedAt).toLocaleString("en-PH", {
               dateStyle: "medium",
@@ -201,7 +202,7 @@ export default function App() {
 
           {(view === "dashboard" || view === "compare") && (
             <div className="flex items-center justify-end gap-2">
-              <label htmlFor="horizon" className="text-xs font-semibold text-rice-700 dark:text-rice-300">
+              <label htmlFor="horizon" className="text-xs font-semibold text-rice-700 dark:text-white">
                 Forecast horizon
               </label>
               <select
@@ -244,8 +245,8 @@ export default function App() {
                   <TrendChart history={forecast.history} seriesLabel={seriesLabel} dark={dark} />
                   <FutureForecast series={selected} seriesLabel={seriesLabel} />
 
-                  <div className="flex flex-col items-start gap-3 rounded-2xl border border-rice-100 bg-white p-4 text-sm text-rice-900/80 sm:flex-row dark:border-white/10 dark:bg-white/5 dark:text-rice-100/80">
-                    <Info className="mt-0.5 h-5 w-5 shrink-0 text-rice-600 dark:text-rice-300" />
+                  <div className="flex flex-col items-start gap-3 rounded-2xl border border-rice-100 bg-white p-4 text-sm text-rice-900/80 sm:flex-row dark:border-white/10 dark:bg-white/5 dark:text-white">
+                    <Info className="mt-0.5 h-5 w-5 shrink-0 text-rice-600 dark:text-white" />
                     <div className="flex-1">
                       <p className="font-semibold text-rice-900 dark:text-white">
                         About this forecast
@@ -258,7 +259,7 @@ export default function App() {
                     </div>
                     <button
                       onClick={() => setPanelOpen(true)}
-                      className="shrink-0 rounded-lg border border-rice-700 px-3 py-1.5 text-xs font-semibold text-rice-700 hover:bg-rice-50 dark:border-rice-400 dark:text-rice-300 dark:hover:bg-white/10"
+                      className="shrink-0 rounded-lg border border-rice-700 px-3 py-1.5 text-xs font-semibold text-rice-700 hover:bg-rice-50 dark:border-rice-400 dark:text-white dark:hover:bg-white/10"
                     >
                       More details
                     </button>
@@ -286,6 +287,8 @@ export default function App() {
           )}
         </main>
       )}
+
+      <ChatAssistant series={selected} seriesLabel={seriesLabel} />
 
       <ModelInfoPanel
         open={panelOpen}

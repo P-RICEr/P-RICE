@@ -283,13 +283,18 @@ def fetch_farmgate():
 
     def rank(h):
         t = h["title"].lower()
-        return ("palay" not in t and "cereal" not in t and "rice" not in t,
-                "month" not in t,
+        # Whole words only: "prices" must not count as "rice".
+        return (not t.startswith("cereals"),
+                not re.search(r"\b(palay|cereals?|rice)\b", t),
+                "geolocation, commodity" not in t,
                 -h.get("score", 0))
     hits.sort(key=rank)
 
-    errors = []
-    for best in hits[:5]:
+    # Download every Cereals farmgate table that has palay: PSA keeps the
+    # older years (before 2010) and the newer years in different tables.
+    errors, frames, all_vars = [], [], []
+    cereal = [h for h in hits if h["title"].lower().startswith("cereals")] or hits[:5]
+    for best in cereal:
         path = best["path"].strip("/").split("/")
         url = f"{OPENSTAT_API}DB/{'/'.join(path)}/{best['id']}"
         try:
@@ -308,12 +313,27 @@ def fetch_farmgate():
             if palay:
                 only[v["code"]] = palay
                 has_palay = True
-        if not has_palay and "palay" not in best["title"].lower():
+        if not has_palay:
             errors.append(f"{best['id']}: no palay rows")
             continue
         say(f"     table: {best['title']}")
         say(f"     found at {url}")
-        return download_openstat(url, variables, only)
+        for v in variables:
+            if v["code"] in only and v["code"] != "Geolocation":
+                texts = dict(zip(v["values"], v.get("valueTexts", v["values"])))
+                say(f"     {v['text']}: {', '.join(texts[c] for c in only[v['code']])[:150]}")
+            if "year" in v["text"].lower():
+                say(f"     years: {v['valueTexts'][0]} to {v['valueTexts'][-1]}")
+        try:
+            df, names = download_openstat(url, variables, only)
+        except Exception as e:
+            errors.append(f"{best['id']}: {e}")
+            continue
+        df.insert(0, "Table", best["id"])
+        frames.append(df)
+        all_vars += [n for n in names if n not in all_vars]
+    if frames:
+        return pd.concat(frames, ignore_index=True), all_vars
     raise RuntimeError("farmgate tables found but none had palay: " + "; ".join(errors)[:300])
 
 
@@ -354,7 +374,16 @@ def compare_with_existing(weekly_nasa, brent):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--start", default=START, help="first date to download (YYYY-MM-DD)")
+    ap.add_argument("--only", choices=["farmgate"], help="download just one source")
     args = ap.parse_args()
+    if args.only == "farmgate":
+        OUT.mkdir(exist_ok=True)
+        say("Palay farmgate price (PSA OpenSTAT search)")
+        df, var_names = fetch_farmgate()
+        df.to_csv(OUT / "openstat_farmgate.csv", index=False)
+        say(f"     variables: {', '.join(var_names)}")
+        say(f"Saved {len(df)} rows -> latest/openstat_farmgate.csv")
+        return 0
 
     OUT.mkdir(exist_ok=True)
     summary, failed = [], []

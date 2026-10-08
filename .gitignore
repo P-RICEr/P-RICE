@@ -18,3 +18,7 @@ Thumbs.db
 # Downloads from update_data.py
 Model Development/data_pipeline/latest/
 Model Development/data_pipeline/build/
+
+# Secrets (Gemini API key)
+.env
+!.env.example
