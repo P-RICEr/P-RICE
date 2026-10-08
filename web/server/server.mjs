@@ -514,13 +514,122 @@ function loadFullResults(freq) {
   return data;
 }
 
+// ---------- Extra analysis (ablation, Diebold-Mariano, future forecast) ----------
+//
+// Written by "P-RICE Extra Analysis (Monthly).ipynb". Optional: if the file
+// is missing, these parts of the website simply stay hidden.
+const EXTRA_XLSX = path.join(MODEL_DIR, "P-RICE Extra Results.xlsx");
+let extraCache = null;
+
+function loadExtraResults() {
+  if (!fs.existsSync(EXTRA_XLSX)) return null;
+  const mtimeMs = fs.statSync(EXTRA_XLSX).mtimeMs;
+  if (extraCache && extraCache.mtimeMs === mtimeMs) return extraCache.data;
+
+  const wb = XLSX.readFile(EXTRA_XLSX, { cellDates: true });
+  const data = {
+    ablation: readSheet(wb, "Ablation").map((r) => ({
+      horizon: r.Horizon,
+      priceOnlyMae: r["Price-only MAE"],
+      fullMae: r["Full model MAE"],
+      priceOnlyMape: r["Price-only MAPE (%)"],
+      fullMape: r["Full model MAPE (%)"],
+      factorsHelp: r["Factors help"],
+      reduction: r["MAE reduction from factors (%)"],
+    })),
+    dieboldMariano: readSheet(wb, "Diebold-Mariano").map((r) => ({
+      horizon: r.Horizon,
+      versus: r["XGBoost vs"],
+      months: r["Months tested"],
+      stat: r["DM statistic"],
+      pValue: r["p-value (one-sided)"],
+      sig5: r["Significant at 5%"],
+      sig10: r["Significant at 10%"],
+    })),
+    future: readSheet(wb, "Future Forecast").map((r) => ({
+      horizon: r.Horizon,
+      series: r.Series,
+      originDate: excelDateToISO(r.Origin_Date),
+      targetDate: excelDateToISO(r.Target_Date),
+      basePrice: r.Base_Price,
+      forecast: r.Forecast,
+      changePct: r["Change (%)"],
+      testMape: r["Test MAPE (%)"],
+    })),
+    futureShap: readSheet(wb, "Future SHAP").map((r) => ({
+      horizon: r.Horizon,
+      series: r.Series,
+      factor: r.Factor,
+      value: r["SHAP (PHP/kg)"],
+    })),
+    updatedAt: fs.statSync(EXTRA_XLSX).mtime.toISOString(),
+  };
+  extraCache = { mtimeMs, data };
+  return data;
+}
+
+// Plain-language reason list for one future forecast, built only from the
+// model's own SHAP values and the latest factor readings (no AI text).
+function explainFuture(series, horizon, extra) {
+  const snapshot = latestFactorSnapshot();
+  const rows = extra.futureShap
+    .filter((r) => r.series === series && r.horizon === horizon && Math.abs(r.value) >= 0.01)
+    .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+  return rows.slice(0, 4).map((r) => {
+    const meta = EXOGENOUS_COLUMNS[r.factor];
+    const snap = snapshot[r.factor];
+    return {
+      factor: r.factor,
+      label: meta?.label || r.factor,
+      effect: Math.round(r.value * 100) / 100, // PHP/kg pushed up (+) or down (-)
+      currentValue: snap?.currentValue ?? null,
+      unit: snap?.unit ?? null,
+      decimals: snap?.decimals ?? null,
+      trend: snap?.trend ?? null,
+    };
+  });
+}
+
+app.get("/api/future", (req, res) => {
+  try {
+    const extra = loadExtraResults();
+    if (!extra) return res.json({ available: false });
+    const series = req.query.series || "Local Special";
+    const horizons = [...new Set(extra.future.map((r) => r.horizon))].sort((a, b) => a - b);
+    // Only offer horizons where XGBoost beat both benchmarks on the test set.
+    const { horizonDecision } = loadResults();
+    const trusted = horizonDecision.filter((h) => h.beatsArima && h.beatsNaive).map((h) => h.horizon);
+    const rows = extra.future
+      .filter((r) => r.series === series && trusted.includes(r.horizon))
+      .sort((a, b) => a.horizon - b.horizon)
+      .map((r) => ({
+        ...r,
+        forecast: Math.round(r.forecast * 100) / 100,
+        basePrice: Math.round(r.basePrice * 100) / 100,
+        changePct: Math.round(r.changePct * 100) / 100,
+        confidence: confidenceFromMape(r.testMape),
+        reasons: explainFuture(series, r.horizon, extra),
+      }));
+    res.json({ available: true, series, horizons, trusted, rows, updatedAt: extra.updatedAt });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/api/results", (req, res) => {
   try {
     const freq = String(req.query.freq || "monthly");
     const available = Object.entries(RESULTS_FILES)
       .filter(([, s]) => fs.existsSync(path.join(MODEL_DIR, s.file)))
       .map(([k]) => k);
-    res.json({ available, ...loadFullResults(freq) });
+    const extra = freq === "monthly" ? loadExtraResults() : null;
+    res.json({
+      available,
+      ...loadFullResults(freq),
+      ablation: extra?.ablation ?? null,
+      dieboldMariano: extra?.dieboldMariano ?? null,
+    });
   } catch (err) {
     console.error(err);
     res.status(err.status || 500).json({ error: err.message });

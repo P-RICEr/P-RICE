@@ -4,6 +4,7 @@ import { api } from "./api";
 import RiceTypeSelector from "./components/RiceTypeSelector";
 import ForecastCard from "./components/ForecastCard";
 import TrendChart from "./components/TrendChart";
+import FutureForecast from "./components/FutureForecast";
 import ModelInfoPanel from "./components/ModelInfoPanel";
 import CompareTable from "./components/CompareTable";
 import AboutPage from "./components/AboutPage";
@@ -235,6 +236,7 @@ export default function App() {
                     onMoreDetails={() => setPanelOpen(true)}
                   />
                   <TrendChart history={forecast.history} seriesLabel={seriesLabel} dark={dark} />
+                  <FutureForecast series={selected} seriesLabel={seriesLabel} />
 
                   <div className="flex flex-col items-start gap-3 rounded-2xl border border-rice-100 bg-white p-4 text-sm text-rice-900/80 sm:flex-row dark:border-white/10 dark:bg-white/5 dark:text-rice-100/80">
                     <Info className="mt-0.5 h-5 w-5 shrink-0 text-rice-600 dark:text-rice-300" />
