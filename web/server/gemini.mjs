@@ -28,11 +28,15 @@ export function loadEnv(file = path.join(__dirname, ".env")) {
 // (Google retires older models for new accounts).
 const FALLBACK_MODELS = [
   "gemini-flash-latest",
+  "gemini-3.8-flash",
+  "gemini-3.5-flash",
   "gemini-3-flash-preview",
-  "gemini-3.1-flash-lite",
   "gemini-flash-lite-latest",
+  "gemini-3.1-flash-lite",
   "gemini-2.5-flash-lite",
 ];
+const BUSY = [429, 500, 503, 504]; // overloaded or rate-limited: try again / another model
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let workingModel = null; // remembered after the first successful call
 
 export function geminiConfig() {
@@ -56,7 +60,7 @@ async function generate(model, key, prompt, temperature, maxTokens) {
         ...(model.startsWith("gemini-2.5-flash") ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
       },
     }),
-    signal: AbortSignal.timeout(45000),
+    signal: AbortSignal.timeout(20000),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -79,19 +83,30 @@ export async function callGemini(prompt, { temperature = 0.3, maxTokens = 2048 }
   const first = workingModel || process.env.GEMINI_MODEL;
   const candidates = [...new Set([first, ...FALLBACK_MODELS].filter(Boolean))];
   let lastError;
+  const deadline = Date.now() + 60000; // give up after a minute in total
   for (const model of candidates) {
-    try {
-      const text = await generate(model, key, prompt, temperature, maxTokens);
-      workingModel = model;
-      return { text, model };
-    } catch (e) {
-      lastError = e;
-      // Only move on when the model itself is unavailable; a bad key or
-      // quota error would fail the same way on every model.
-      if (![400, 404].includes(e.status) || /api key/i.test(e.message)) throw e;
+    if (Date.now() > deadline) break;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const text = await generate(model, key, prompt, temperature, maxTokens);
+        workingModel = model;
+        return { text, model };
+      } catch (e) {
+        lastError = e;
+        if (/api key/i.test(e.message)) throw e; // a bad key fails on every model
+        if (BUSY.includes(e.status) && attempt === 0) {
+          await sleep(1500); // busy: wait a moment and retry the same model once
+          continue;
+        }
+        break; // retired, unavailable or still busy: try the next model
+      }
     }
+    if (workingModel === model) workingModel = null; // stop preferring a model that failed
   }
-  throw lastError;
+  const busy = BUSY.includes(lastError?.status);
+  throw new Error(busy
+    ? "Gemini is busy right now. Please try again in a minute."
+    : lastError?.message || "Gemini failed");
 }
 
 function monthYear(iso) {

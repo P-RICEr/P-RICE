@@ -184,8 +184,7 @@ export default function FutureForecast({ series, seriesLabel }) {
               )}
               {ai.status === "error" && (
                 <p className="mt-2 text-xs text-red-700 dark:text-red-300">
-                  The AI explanation is not available right now ({ai.error}). The summary above is still
-                  accurate.
+                  {ai.error} The summary above is still accurate.
                 </p>
               )}
               <p className="mt-2 text-[11px] text-rice-900/50 dark:text-rice-100/50">
