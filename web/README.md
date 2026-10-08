@@ -1,231 +1,180 @@
 # P-RICE Web Dashboard
 
-This is the website version of P-RICE — the same forecasts from the
-notebook, shown as a dashboard instead of a notebook with charts. This
-guide assumes you've never run a website like this before, so it spells
-out every click. Follow it top to bottom.
+The website version of P-RICE: the same forecasts and test results as the
+notebook, shown as a dashboard.
 
-**This is UI only.** It does not retrain the model. It reads numbers
-straight from the files the notebook already makes:
-- `Model Development/*.csv` → the actual historical prices (the solid
-  green line in the chart)
-- `Model Development/P-RICE Results.xlsx` → the forecasts, accuracy
-  numbers, and SHAP values (the forecast card and the dashed red line)
+| Part | Folder | Built with |
+|---|---|---|
+| Backend (server / API) | `web/server/` | Node.js, Express, SheetJS (reads the Excel and CSV files) |
+| Frontend (website) | `web/client/` | React, Vite, Tailwind CSS, Recharts |
 
-So the order is always: **run the notebook first (Run All) → then start
-the website below → the website shows whatever the notebook last
-produced.** If you run the website without running the notebook first,
-it will show an error, because there's nothing to read yet.
+**The dashboard does not train the model.** It reads the files the
+notebook makes:
+
+- `Model Development/*.csv`: actual historical prices and factor values
+- `Model Development/P-RICE Results.xlsx`: forecasts, accuracy and SHAP (main notebook)
+- `Model Development/P-RICE Results (Weekly).xlsx`: weekly results (weekly notebook)
+- `Model Development/P-RICE Extra Results.xlsx`: ablation, Diebold-Mariano and the Next forecast (extra notebook)
+
+So the order is always: **run the notebook (Run All) → start the server →
+start the website.**
+
+The full setup guide (installing Python, Node.js and Git, and running the
+notebook) is in the main [README](../README.md). This page covers only the
+website.
 
 ---
 
-## Before you start: words used in this guide
+## Words used in this guide
 
-| Word | What it means |
+| Word | Meaning |
 |---|---|
-| **Terminal** | A dark window where you type commands. On Windows, search "Command Prompt" or "PowerShell" in the Start menu. |
-| **Server / API** | A small background program that reads the Excel/CSV files and hands the numbers to the website. It has no visible window of its own besides the terminal running it. |
-| **Client / Website** | The part you actually see and click on, in your browser. |
-| **`cd`** | Short for "change directory" — it means "go into this folder" inside the terminal. |
-| **`npm install`** | Downloads all the small code libraries the project needs. You only do this once per computer (per folder), similar to installing an app. |
-| **Localhost** | Means "this same computer." `http://localhost:5173` is a website running only on your own machine — no one else can open that link, only you, from that computer. |
+| **Terminal** | The window where you type commands. On Windows: PowerShell or Command Prompt |
+| **Server / API** | A background program that reads the Excel/CSV files and sends the numbers to the website |
+| **Client / website** | The part you see and click in your browser |
+| **`cd`** | "Change directory": go into a folder in the terminal |
+| **`npm install`** | Downloads the code libraries the project needs. Once per computer |
+| **localhost** | "This computer". `http://localhost:5173` only works on the computer running it |
 
 ---
 
 ## Part 1: One-time setup
 
-### Step 1.1 — Install Node.js
-Node.js is what runs the server and builds the website.
-1. Go to **https://nodejs.org/**.
-2. Click the button that says **LTS** (this means "Long Term Support" —
-   the stable version). Do not pick the "Current" version.
-3. Open the downloaded installer.
-4. Click **Next** through every screen, keeping all the default options
-   checked, then **Install**, then **Finish**.
-
-**Check it worked:** open a terminal (see Step 1.2) and type:
-```
-node -v
-```
-then press Enter. You should see something like `v22.13.0`. If you get
-`'node' is not recognized`, restart your computer and try again — Node
-sometimes needs a restart to be added to your system's PATH.
-
-### Step 1.2 — Get to the `web` folder in a terminal
-1. Open File Explorer and go to the `P-RICE` folder, then into the `web`
-   folder inside it (`P-RICE\web`).
-2. Click once on the address bar at the top (where the folder path is
-   shown), type `cmd`, and press Enter. A terminal opens already inside
-   that `web` folder.
-
-You'll do this twice, in **two separate terminal windows** — one for the
-server, one for the website. Keep both open at the same time while using
-the dashboard.
-
-### Step 1.3 — Install the server's libraries (Terminal #1)
-1. In your first terminal (opened per Step 1.2, inside the `web` folder),
-   type:
+### Step 1.1: Install Node.js
+1. Go to https://nodejs.org/ and download the **LTS** version.
+2. Run the installer and click **Next** through every screen.
+3. Check it in a terminal:
    ```
-   cd server
+   node -v
    ```
-   and press Enter.
-2. Then type:
+   You should see a version like `v22.x`. If it says "not recognized",
+   restart your computer.
+
+### Step 1.2: Install the server's libraries (Terminal 1)
+1. In File Explorer, open `P-RICE\web\server`.
+2. Click the address bar, type `powershell`, press Enter.
+3. Run:
    ```
    npm install
    ```
-   and press Enter. Wait — you'll see a progress bar and some text. This
-   can take 1–2 minutes the first time. When it stops and you get a plain
-   new line, it's done. (You'll also see "npm warn" messages in yellow —
-   those are normal and not errors.)
 
-### Step 1.4 — Install the website's libraries (Terminal #2)
-1. Open a **second** terminal window the same way as Step 1.2, again
-   inside the `web` folder (not inside `server`).
-2. Type:
-   ```
-   cd client
-   ```
-   and press Enter.
-3. Then type:
+### Step 1.3: Install the website's libraries (Terminal 2)
+1. Open `P-RICE\web\client` the same way, in a **second** terminal.
+2. Run:
    ```
    npm install
    ```
-   and press Enter. Wait for it to finish the same way as Step 1.3.
 
-**You only need Part 1 once per computer.** Everything below (Part 2) is
-what you repeat every time you want to view the dashboard.
+Yellow `npm warn` messages are normal.
+
+### Step 1.4 (optional): Turn on the AI features
+See the main README, Section 7. Without a Gemini key the dashboard works
+the same, just without "AI explain" and "Ask P-RICE".
 
 ---
 
-## Part 2: Running the dashboard (do this every time)
+## Part 2: Run the dashboard (every time)
 
-You need **both terminals running at the same time** — one keeps the data
-server alive, the other keeps the website alive. Neither works alone.
+### Step 2.1: Make sure the notebook has been run
+`Model Development/P-RICE Results.xlsx` must exist. If it doesn't, run the
+main notebook first (main README, Section 3).
 
-### Step 2.1 — Make sure the model has been run at least once
-Open `Model Development/P-RICE Results.xlsx` — if that file exists and
-has numbers in it, you're good. If it doesn't exist yet, go run the
-notebook first (see the main `README.md` in the `P-RICE` folder, Part 2),
-then come back here.
-
-### Step 2.2 — Start the server (Terminal #1)
-1. In your first terminal, make sure you're inside the `web/server`
-   folder (if you closed the terminal, redo `cd` into `web`, then
-   `cd server`).
-2. Type:
-   ```
-   npm run dev
-   ```
-   and press Enter.
-3. You should see a message like:
-   ```
-   P-RICE API running on http://localhost:4000
-   Reading model output from: ...P-RICE Results.xlsx
-   ```
-4. **Leave this terminal open and running.** Don't close it or press
-   Ctrl+C in it while you're using the dashboard — closing it turns the
-   dashboard off.
-
-**If instead you see:**
+### Step 2.2: Start the server (Terminal 1, in `web\server`)
 ```
-WARNING: ...P-RICE Results.xlsx not found yet. Run the notebook (Run All) first.
+npm run dev
 ```
-this means the notebook hasn't been run yet, or was run somewhere else.
-Go back to Step 2.1.
+Expected output:
+```
+P-RICE API running on http://localhost:4000
+Reading model output from: ...P-RICE Results.xlsx
+```
+Check it: open http://localhost:4000/api/health. It should say `"ok": true`.
 
-### Step 2.3 — Start the website (Terminal #2)
-1. In your second terminal, make sure you're inside `web/client`.
-2. Type:
-   ```
-   npm run dev
-   ```
-   and press Enter.
-3. You should see something like:
-   ```
-   VITE ready in 300 ms
-   ➜  Local:   http://localhost:5173/
-   ```
-4. **Leave this terminal open too.**
+**Leave this terminal open.**
 
-### Step 2.4 — Open the dashboard
-1. Open your browser (Chrome, Edge, whichever you normally use).
-2. In the address bar, type exactly:
-   ```
-   http://localhost:5173
-   ```
-3. Press Enter. The dashboard should load, showing the 8 rice types at
-   the top and a forecast card below.
+### Step 2.3: Start the website (Terminal 2, in `web\client`)
+```
+npm run dev
+```
+Expected output:
+```
+VITE ready in 300 ms
+➜  Local:   http://localhost:5173/
+```
+**Leave this terminal open too.**
 
-### Step 2.5 — Using the dashboard
-- **Click a rice type** at the top (e.g. "Local Special") to switch which
-  one is shown.
-- **The dropdown at the top-right** ("Forecast horizon") changes how many
-  months ahead the forecast card and chart are showing (1 to 6 months).
-- **The green card** shows the model's forecast price, whether it expects
-  an increase or decrease, and a confidence label.
-- **"more details" / "More details"** opens a panel showing the model's
-  accuracy (MAE) compared to ARIMA and a naive guess, plus which factors
-  (oil price, farmgate price, etc.) mattered most for that forecast.
-- **The chart below** shows the actual price (solid green line) against
-  the model's forecast (dashed red line). Use the **3M / 6M / 1Y / 2Y /
-  ALL** buttons top-right of the chart to zoom in or out.
+### Step 2.4: Open the dashboard
+Go to **http://localhost:5173** in your browser.
 
-**Important:** the forecast shown is the model's most recent *backtested*
-forecast — meaning it's for a month that's already inside the historical
-data used to test the model, not a real, still-unknown future month. This
-is explained inside the "more details" panel too. This is the same
-evaluation Chapter 4 is built on — it shows how well the model performed
-on data it hadn't been trained on, not a live crystal-ball prediction.
+- **Rice type buttons** (top): switch the rice type shown.
+- **Forecast horizon** (dropdown): 1 to 6 months ahead.
+- **Forecast card**: the model's forecast for the last test month, whether
+  it expects an increase or decrease, and a confidence label. **more
+  details** shows MAE vs ARIMA and Naive, and the factors behind it.
+- **Trend chart**: actual price (green) vs the model's forecast (blue,
+  dashed). Zoom with **3M / 6M / 1Y / 2Y / ALL**; export with **CSV / PNG**.
+- **Next forecast**: a true forecast beyond the data, with the factors that
+  pushed it up (red) or down (green). **AI explain** writes it in plain
+  English or Taglish (needs a Gemini key).
+- **Ask P-RICE** (bottom right): the chatbot (needs a Gemini key).
+- **Test Results** tab: all accuracy tables and charts for Chapter 4.
 
-### Step 2.6 — When you're done
-In each terminal, click inside it and press **Ctrl+C** to stop it. It's
-fine to just close both terminal windows too.
+### Step 2.5: When you're done
+Press **`Ctrl+C`** in each terminal, or close them.
 
-**Next time you want to open the dashboard again:** you don't need to
-repeat Part 1 (installing libraries) — just repeat Part 2 (open two
-terminals, `npm run dev` in each, then open the browser link).
+---
+
+## Quick reference
+
+```
+Terminal 1                         Terminal 2
+cd P-RICE\web\server               cd P-RICE\web\client
+npm run dev                        npm run dev
+```
+Then open **http://localhost:5173**.
+
+After re-running a notebook, just refresh the browser (F5).
+
+---
+
+## For developers
+
+| Command | Folder | What it does |
+|---|---|---|
+| `npm run dev` | `server` | Start the API on port 4000 and restart on file changes |
+| `npm start` | `server` | Start the API without auto-restart |
+| `npm run check:gemini` | `server` | Test the Gemini key in `.env` and list the models it can use |
+| `npm run dev` | `client` | Start the website on port 5173 (calls to `/api` go to port 4000) |
+| `npm run build` | `client` | Build the website for deployment into `client/dist` |
+
+Settings in `web/server/.env` (copy from `.env.example`):
+
+| Setting | Meaning |
+|---|---|
+| `GEMINI_API_KEY` | Turns on AI explain and the assistant |
+| `GEMINI_MODEL` | First Gemini model to try (default `gemini-flash-lite-latest`, the fastest) |
+| `ALLOWED_ORIGINS` | Websites allowed to call the API from a browser, comma-separated (for a deployed site) |
+| `PORT` | Server port (default 4000) |
+| `MODEL_DIR` | Path to `Model Development` if your folders are arranged differently |
+
+Main API endpoints: `/api/health`, `/api/series`, `/api/forecast`,
+`/api/compare`, `/api/model-info`, `/api/results?freq=monthly|weekly`,
+`/api/future`, `/api/explain` (POST), `/api/chat` (POST, streamed).
 
 ---
 
 ## Troubleshooting
 
-| What you see | What it means | What to do |
-|---|---|---|
-| `'node' is not recognized as an internal or external command` | Node.js isn't installed, or your computer needs a restart after installing it | Redo Step 1.1, then restart your computer |
-| `npm error could not determine executable to run` or similar right after `npm install` | You're in the wrong folder | Check you typed `cd server` (Terminal #1) or `cd client` (Terminal #2) before running the command |
-| Server terminal shows `WARNING: ...P-RICE Results.xlsx not found yet` | The notebook hasn't been run, or was run in a different copy of the folder | Run the notebook (main README, Part 2), confirm `P-RICE Results.xlsx` exists inside `Model Development`, then restart the server (Ctrl+C, then `npm run dev` again) |
-| Browser says "This site can't be reached" at `localhost:5173` | The website terminal (Terminal #2) isn't running, or hasn't finished starting yet | Check Terminal #2 shows the "VITE ready" message; if you closed it, redo Step 2.3 |
-| The dashboard loads but shows "Couldn't load model data" | The server (Terminal #1) isn't running, or crashed | Check Terminal #1 is still open and didn't show a red error; if it closed, redo Step 2.2 |
-| Terminal says `Port 4000 is already in use` (or `5173`) | You already have a server or website running from before (maybe in another terminal you forgot about) | Close all terminal windows, reopen fresh ones, and try again. Or just refresh your browser — it might already be running from the older terminal |
-| The numbers on the dashboard look "stuck" / didn't change after re-running the notebook | The dashboard only reads the file when you refresh the page | Just refresh the browser page (F5) — no need to restart the terminals |
-| A wall of red/pink text appears in a terminal | Something crashed | Copy the **first few lines** of the red text (that's usually where the actual problem is described) and send it to Yuri |
+| What you see | What to do |
+|---|---|
+| `'node'` or `'npm'` is not recognized | Install Node.js (Step 1.1) and restart your computer |
+| `Cannot find module ...` | Run `npm install` in that folder (`web\server` or `web\client`) |
+| `WARNING: ...P-RICE Results.xlsx not found yet` | Run the main notebook, then restart the server |
+| "This site can't be reached" at `localhost:5173` | Terminal 2 isn't running. Do Step 2.3 |
+| Dashboard loads but shows an error, `Request failed: 500` or `404` | Terminal 1 isn't running, or is an old copy. Restart it (`Ctrl+C`, `npm run dev`) |
+| `Port 4000 is already in use` (or `5173`) | An old terminal is still running. Close all terminals and start again |
+| Numbers didn't change after re-running the notebook | Refresh the browser (F5) |
+| Old icon in the browser tab | Press `Ctrl+Shift+R` |
 
-**If you're stuck and none of the above matches:** don't keep retrying
-random things. Take a screenshot of **both terminal windows** and the
-browser, and send them to Yuri along with what step you were on.
-
----
-
-## Quick reference (once everything is installed)
-
-Every time you want to open the dashboard:
-
-```
-Terminal 1:                      Terminal 2:
-cd P-RICE\web\server              cd P-RICE\web\client
-npm run dev                       npm run dev
-```
-Then open **http://localhost:5173** in your browser.
-
----
-
-## Not built yet (for later, not needed for the current deadline)
-
-- A true "next month" forecast beyond the historical dataset — this needs
-  the trained model itself saved to a file (the notebook currently only
-  saves its *results*, not the model). This is a small addition Yuri can
-  make once it's needed.
-- Connecting this directly to the OpenSTAT API, instead of reading from
-  the CSV files, once the automated data pipeline is ready.
-- Putting this online (so it has a real shareable link) instead of only
-  running on one computer at a time.
+**Still stuck?** Screenshot both terminals and the browser, and send them
+with the step you were on.
