@@ -1,61 +1,63 @@
-# Monthly data pipeline (OpenSTAT / FRED / NASA POWER)
+# Getting the latest data
 
-These scripts pull the predictors needed for the **monthly** version of
-P-RICE. **Run them yourself, on your own computer, in your own
-terminal/VS Code** — Claude's linked-device session cannot reach any of
-these websites (confirmed blocked: OpenSTAT, FRED, NASA POWER, BSP). Only
-GitHub is reachable from there. This isn't a bug to fix — it's how the
-sandboxed session's network is set up — so this part has to run on your
-side.
+The thesis uses a **fixed dataset: August 2023 to June 2026**. Do not add
+new months to the model's CSV files while the paper is being finished,
+or every result in Chapter 4 will change.
 
-## One-time setup
-```
-pip install requests pandas openpyxl xlrd
-```
+This folder is for getting newer data **after** the thesis (or for
+checking the "Next forecast" on the dashboard against real prices).
 
-## Run these, in this order
+## Automatic: `update_data.py`
+
+Run it on your own computer. It needs internet access to FRED, NASA
+POWER and PSA OpenSTAT (Claude's sandbox cannot reach these sites).
 
 ```
-python fetch_openstat_rice_prices.py
-python fetch_brent_oil_fred.py
-python fetch_rainfall_nasa_power.py
-python fetch_openstat_rice_stocks.py     # will need a fix — see below
+cd "Model Development/data_pipeline"
+pip install requests pandas
+python update_data.py
 ```
 
-Each one prints what it downloaded and writes a CSV next to itself. If one
-fails with an error, **copy the whole error message and send it to
-Claude/Yuri** rather than trying to fix the script yourself — some of the
-OpenSTAT table codes couldn't be verified without internet access, so the
-first run may need a small correction.
+| Data | Source | Saved as |
+|---|---|---|
+| Brent crude oil (monthly) | FRED, series `MCOILBRENTEU` | `latest/brent_oil_monthly.csv` |
+| Rainfall and temperature (daily, weekly, monthly) | NASA POWER, `PRECTOTCORR` and `T2M` at 14.5995 N, 120.9842 E | `latest/weather_*.csv` |
+| Rice stocks inventory | PSA OpenSTAT table `0032E4ECNV0` | `latest/openstat_rice_stocks.csv` |
+| Volume of palay production | PSA OpenSTAT table `0012E4EVCP0` | `latest/openstat_volume_of_production.csv` |
 
-### Known unfinished piece: rice stocks
-`fetch_openstat_rice_stocks.py` writes a "RAW" file because the exact
-column layout of that OpenSTAT table couldn't be confirmed ahead of time.
-After running it, open `openstat_rice_stocks_monthly_RAW.csv` and send it
-back — the parsing will get finished once we can see what it actually
-looks like.
+No API keys are needed. If one website is down, the others still finish,
+and the script tells you which one failed.
 
-### Farmgate price — no script yet
-Farmgate price isn't a simple PXWeb table like the others (it's a
-regular PSA web page, not an API), so for now, download it the same way
-you did **Inflation Rate.xls** and **Exchange Rate Processed.xlsx** —
-manually, as a file — from:
-https://psa.gov.ph/farmgate-prices-palay/index
-Save it into this same folder and let Claude know.
+The script **does not change** the model's CSV files. At the end it
+compares the new downloads with `Local Special Rice.csv` for the weeks
+and months they share:
 
-## What still needs to happen after all this
+- a difference near **0** means the download matches the thesis data
+- a large difference means the thesis used a different source or
+  alignment, so check before adding new rows
 
-1. Put **Inflation Rate.xls**, **Exchange Rate Processed.xlsx**, and the
-   farmgate file into this folder too.
-2. Send Claude a note that everything is here — the merge script that
-   combines all of these into one monthly table (matching what the main
-   notebook's "Load data" cell expects) will be finished once every piece
-   exists and its exact format has been checked.
-3. **Important scope note:** OpenSTAT's rice price table only has
-   **3 rice types** (Well-milled, Regular-milled, Special) with **no
-   Local vs. Imported split** — that split only exists in the weekly DA
-   data used for the original weekly notebook. So the monthly version of
-   the model will cover 3 series, not 8, unless a different source with
-   the Local/Imported split is found. This is exactly open decision #1
-   from the handoff brief ("3 vs 8 rice types") — worth confirming with
-   the adviser/panel before writing Chapter 3 around it.
+Weekly weather uses weeks ending on **Saturday**, the same as the rice
+price data. Only complete weeks are kept.
+
+## Still manual
+
+| Data | Where | Why manual |
+|---|---|---|
+| Weekly retail rice prices (8 types) | https://www.da.gov.ph/price-monitoring/ | Published as one PDF per week |
+| Farmgate price | PSA price situationer / FAOSTAT | Published as reports, not an API |
+| Inflation rate | https://www.bsp.gov.ph/SitePages/Statistics/Prices.aspx?TabId=1 | Downloaded as an .xls file |
+| Exchange rate | https://www.bsp.gov.ph/sitepages/statistics/exchangerate.aspx | Downloaded as an .xls file |
+
+## How recent the data can be
+
+Each source is released with a delay, so the newest complete month is
+usually 1 to 2 months behind today.
+
+| Data | Typical delay |
+|---|---|
+| NASA POWER weather | a few days |
+| Exchange rate | daily |
+| DA retail prices | weekly |
+| Brent oil, inflation | about 1 month |
+| Rice stocks, farmgate | 1 to 2 months |
+| Volume of production | quarterly |
