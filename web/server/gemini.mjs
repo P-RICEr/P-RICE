@@ -23,20 +23,25 @@ export function loadEnv(file = path.join(__dirname, ".env")) {
   }
 }
 
-// Tried in order when GEMINI_MODEL is unavailable or busy
-// (Google retires older models for new accounts).
+// Tried in order (after GEMINI_MODEL, if set). "Lite" models first: they
+// answer in 1 to 3 seconds and are plenty for short, fact-based replies.
+// Bigger Flash models are the fallback when the lite ones are busy.
 const FALLBACK_MODELS = [
-  "gemini-flash-latest",
-  "gemini-3.8-flash",
-  "gemini-3.5-flash",
-  "gemini-3-flash-preview",
   "gemini-flash-lite-latest",
   "gemini-3.1-flash-lite",
   "gemini-2.5-flash-lite",
+  "gemini-flash-latest",
+  "gemini-3.5-flash",
+  "gemini-3.8-flash",
 ];
 const BUSY = [429, 500, 503, 504];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let workingModel = null; // remembered after the first successful call
+
+function candidateModels() {
+  const first = workingModel || process.env.GEMINI_MODEL;
+  return [...new Set([first, ...FALLBACK_MODELS].filter(Boolean))];
+}
 
 export function geminiConfig() {
   return {
@@ -69,7 +74,7 @@ async function generate(model, key, { system, contents, temperature, maxTokens }
         ...(model.startsWith("gemini-2.5-flash") ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
       },
     }),
-    signal: AbortSignal.timeout(25000),
+    signal: AbortSignal.timeout(20000),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -106,29 +111,126 @@ export async function callGemini(input, { temperature = 0.3, maxTokens = 8192 } 
       ? { contents: [{ role: "user", parts: [{ text: input }] }] }
       : input;
 
-  const first = workingModel || process.env.GEMINI_MODEL;
-  const candidates = [...new Set([first, ...FALLBACK_MODELS].filter(Boolean))];
-  const deadline = Date.now() + 60000;
+  const candidates = candidateModels();
+  const deadline = Date.now() + 45000;
   let lastError;
   for (const model of candidates) {
     if (Date.now() > deadline) break;
     for (let attempt = 0; attempt < 2; attempt++) {
+      const t0 = Date.now();
       try {
         const text = await generate(model, key, { ...req, temperature, maxTokens });
         workingModel = model;
+        console.log(`Gemini ok: ${model} in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
         return { text, model };
       } catch (e) {
         lastError = e;
+        console.warn(`Gemini skip: ${model} (${e.message.slice(0, 80)})`);
         if (/api key/i.test(e.message)) throw e; // a bad key fails on every model
         if (e.message === "blocked") throw e;
-        if (e.retryable && attempt === 0) {
-          await sleep(1200);
-          continue;
-        }
-        break; // retired, unavailable or still failing: try the next model
+        // A cut-off or empty answer gets one more try; a busy model is skipped at once.
+        if (e.retryable && e.status === 200 && attempt === 0) continue;
+        break;
       }
     }
     if (workingModel === model) workingModel = null;
+  }
+  throw new Error(
+    BUSY.includes(lastError?.status)
+      ? "Gemini is busy right now. Please try again in a minute."
+      : lastError?.message || "Gemini failed"
+  );
+}
+
+/**
+ * Streams a reply: yields text pieces as Gemini writes them.
+ * Falls back to the next model only if a model fails before its first piece.
+ */
+export async function* streamGemini({ system, contents }, { temperature = 0.2, maxTokens = 4096 } = {}) {
+  const { key } = geminiConfig();
+  if (!key) throw new Error("GEMINI_API_KEY is not set in web/server/.env");
+  let lastError;
+  for (const model of candidateModels()) {
+    const t0 = Date.now();
+    let res;
+    try {
+      res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+          body: JSON.stringify({
+            ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
+            contents,
+            generationConfig: {
+              temperature,
+              maxOutputTokens: maxTokens,
+              ...(model.startsWith("gemini-2.5-flash") ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+            },
+          }),
+          signal: AbortSignal.timeout(30000),
+        }
+      );
+    } catch (e) {
+      lastError = e;
+      console.warn(`Gemini skip: ${model} (${e.message})`);
+      continue;
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      lastError = new GeminiError(`Gemini ${res.status} (${model}): ${body?.error?.message || ""}`, res.status);
+      console.warn(`Gemini skip: ${model} (${res.status})`);
+      if (/api key/i.test(lastError.message)) throw lastError;
+      continue;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let sent = 0;
+    let finish = null;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let nl;
+        while ((nl = buffer.indexOf("\n")) !== -1) {
+          const line = buffer.slice(0, nl).trim();
+          buffer = buffer.slice(nl + 1);
+          if (!line.startsWith("data:")) continue;
+          let chunk;
+          try {
+            chunk = JSON.parse(line.slice(5));
+          } catch {
+            continue;
+          }
+          const cand = chunk.candidates?.[0];
+          if (chunk.promptFeedback?.blockReason || cand?.finishReason === "SAFETY") throw new Error("blocked");
+          finish = cand?.finishReason || finish;
+          const text = (cand?.content?.parts || [])
+            .filter((p) => !p.thought)
+            .map((p) => p.text || "")
+            .join("");
+          if (text) {
+            if (sent === 0) console.log(`Gemini first words: ${model} in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+            sent += text.length;
+            yield text;
+          }
+        }
+      }
+    } catch (e) {
+      if (sent > 0 || e.message === "blocked") throw e; // can't switch models mid-answer
+      lastError = e;
+      continue;
+    }
+    if (sent === 0) {
+      lastError = new Error(`empty reply (${model})`);
+      continue;
+    }
+    workingModel = model;
+    console.log(`Gemini done: ${model} in ${((Date.now() - t0) / 1000).toFixed(1)}s${finish === "MAX_TOKENS" ? " (cut off)" : ""}`);
+    return;
   }
   throw new Error(
     BUSY.includes(lastError?.status)

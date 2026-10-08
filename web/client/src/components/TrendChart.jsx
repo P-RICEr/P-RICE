@@ -31,7 +31,7 @@ function CustomTooltip({ active, payload, label }) {
     <div className="rounded-lg border border-rice-100 bg-white px-3 py-2 text-xs shadow-md dark:border-white/10 dark:bg-rice-900">
       <p className="mb-1 font-semibold text-rice-900 dark:text-white">{formatTick(label)}</p>
       {payload.map((p) => (
-        <p key={p.dataKey} className="flex items-center gap-2 text-rice-900 dark:text-rice-100">
+        <p key={p.dataKey} className="flex items-center gap-2 text-rice-900 dark:text-white">
           <span className="inline-block h-2 w-2 rounded-full" style={{ background: p.color }} />
           {p.name}: ₱{Number(p.value).toFixed(2)}
         </p>
@@ -40,7 +40,7 @@ function CustomTooltip({ active, payload, label }) {
   );
 }
 
-const legendText = (v) => <span className="text-rice-900 dark:text-rice-100">{v}</span>;
+const legendText = (v) => <span className="text-rice-900 dark:text-white">{v}</span>;
 
 export default function TrendChart({ history, seriesLabel, dark }) {
   const [range, setRange] = useState("1Y");
@@ -76,7 +76,7 @@ export default function TrendChart({ history, seriesLabel, dark }) {
     <div className="rounded-2xl border border-rice-100 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-rice-900">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-rice-600 dark:text-rice-300">
+          <p className="text-xs font-semibold uppercase tracking-wide text-rice-600 dark:text-white">
             View Trend
           </p>
           <h3 className="text-sm text-rice-900 dark:text-white">
@@ -93,7 +93,7 @@ export default function TrendChart({ history, seriesLabel, dark }) {
                 className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
                   range === r.key
                     ? "bg-rice-700 text-white shadow-sm"
-                    : "text-rice-700 hover:bg-white dark:text-rice-200 dark:hover:bg-white/10"
+                    : "text-rice-700 hover:bg-white dark:text-white dark:hover:bg-white/10"
                 }`}
               >
                 {r.key}
@@ -105,7 +105,7 @@ export default function TrendChart({ history, seriesLabel, dark }) {
             <button
               onClick={handleCsvExport}
               title="Download this chart's data as CSV"
-              className="flex items-center gap-1 rounded-lg border border-rice-200 px-2.5 py-1.5 text-xs font-semibold text-rice-700 hover:bg-rice-50 dark:border-white/20 dark:text-rice-200 dark:hover:bg-white/10"
+              className="flex items-center gap-1 rounded-lg border border-rice-200 px-2.5 py-1.5 text-xs font-semibold text-rice-700 hover:bg-rice-50 dark:border-white/20 dark:text-white dark:hover:bg-white/10"
             >
               <Download className="h-3.5 w-3.5" />
               CSV
@@ -114,7 +114,7 @@ export default function TrendChart({ history, seriesLabel, dark }) {
               onClick={handlePngExport}
               disabled={exporting}
               title="Download this chart as a PNG image"
-              className="flex items-center gap-1 rounded-lg border border-rice-200 px-2.5 py-1.5 text-xs font-semibold text-rice-700 hover:bg-rice-50 disabled:opacity-50 dark:border-white/20 dark:text-rice-200 dark:hover:bg-white/10"
+              className="flex items-center gap-1 rounded-lg border border-rice-200 px-2.5 py-1.5 text-xs font-semibold text-rice-700 hover:bg-rice-50 disabled:opacity-50 dark:border-white/20 dark:text-white dark:hover:bg-white/10"
             >
               <ImageIcon className="h-3.5 w-3.5" />
               {exporting ? "Saving…" : "PNG"}
@@ -125,7 +125,7 @@ export default function TrendChart({ history, seriesLabel, dark }) {
 
       <div
         ref={chartAreaRef}
-        className="bg-white p-1 text-rice-700 dark:bg-rice-900 dark:text-rice-200"
+        className="bg-white p-1 text-rice-700 dark:bg-rice-900 dark:text-white"
       >
         <ResponsiveContainer width="100%" height={340}>
           <LineChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: -12 }}>

@@ -70,7 +70,8 @@ export default function ChatAssistant({ series, seriesLabel }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]); // {role: "user"|"assistant", text}
   const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(false); // waiting for the first words
+  const [streaming, setStreaming] = useState(false); // until the answer is complete
   const [error, setError] = useState(null);
   const listRef = useRef(null);
   const inputRef = useRef(null);
@@ -118,19 +119,29 @@ export default function ChatAssistant({ series, seriesLabel }) {
 
   async function send(text) {
     const q = text.trim();
-    if (!q || busy || q.length > MAX_CHARS) return;
+    if (!q || busy || streaming || q.length > MAX_CHARS) return;
     const next = [...messages, { role: "user", text: q }];
     setMessages(next);
     setInput("");
     setError(null);
     setBusy(true);
+    setStreaming(true);
     try {
-      const r = await api.chat(next, { series });
-      setMessages([...next, { role: "assistant", text: r.text }]);
+      let shown = false;
+      await api.chat(next, { series }, (soFar) => {
+        // Replace the typing dots with the answer as soon as words arrive.
+        shown = true;
+        setBusy(false);
+        setMessages([...next, { role: "assistant", text: soFar }]);
+      });
+      if (!shown) setMessages(next);
     } catch (e) {
+      // Drop a half-written answer; keep the question so Retry works.
+      setMessages(next);
       setError(e.message);
     } finally {
       setBusy(false);
+      setStreaming(false);
       inputRef.current?.focus();
     }
   }
@@ -171,7 +182,7 @@ export default function ChatAssistant({ series, seriesLabel }) {
             <img src="/brand/logo-mark-dark.png" alt="" className="hidden h-8 w-8 dark:block" />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-rice-900 dark:text-white">P-RICE Assistant</p>
-              <p className="flex items-center gap-1 text-[11px] text-rice-700/80 dark:text-rice-300/80">
+              <p className="flex items-center gap-1 text-[11px] text-rice-700/80 dark:text-white">
                 <ShieldCheck className="h-3 w-3" />
                 Answers only from this dashboard's data
               </p>
@@ -184,7 +195,7 @@ export default function ChatAssistant({ series, seriesLabel }) {
                 }}
                 title="New chat"
                 aria-label="Start a new chat"
-                className="rounded-lg p-1.5 text-rice-700 hover:bg-rice-100 dark:text-rice-200 dark:hover:bg-white/10"
+                className="rounded-lg p-1.5 text-rice-700 hover:bg-rice-100 dark:text-white dark:hover:bg-white/10"
               >
                 <RotateCcw className="h-4 w-4" />
               </button>
@@ -192,7 +203,7 @@ export default function ChatAssistant({ series, seriesLabel }) {
             <button
               onClick={close}
               aria-label="Close assistant"
-              className="rounded-lg p-1.5 text-rice-700 hover:bg-rice-100 dark:text-rice-200 dark:hover:bg-white/10"
+              className="rounded-lg p-1.5 text-rice-700 hover:bg-rice-100 dark:text-white dark:hover:bg-white/10"
             >
               <X className="h-4 w-4" />
             </button>
@@ -200,7 +211,7 @@ export default function ChatAssistant({ series, seriesLabel }) {
 
           {/* Messages */}
           <div ref={listRef} aria-live="polite" className="flex-1 space-y-3 overflow-y-auto px-4 py-4 text-sm">
-            <div className="max-w-[90%] rounded-2xl rounded-tl-sm bg-rice-50 px-3.5 py-2.5 text-rice-900/90 dark:bg-white/5 dark:text-rice-100/90">
+            <div className="max-w-[90%] rounded-2xl rounded-tl-sm bg-rice-50 px-3.5 py-2.5 text-rice-900/90 dark:bg-white/5 dark:text-white">
               <p>
                 Hi! I can answer questions about P-RICE: rice price forecasts, past prices, the factors
                 behind them, and how accurate the model is. English, Filipino or Taglish is fine.
@@ -213,7 +224,7 @@ export default function ChatAssistant({ series, seriesLabel }) {
                   <button
                     key={s}
                     onClick={() => send(s)}
-                    className="rounded-full border border-rice-200 px-3 py-1.5 text-left text-xs text-rice-800 transition hover:border-rice-400 hover:bg-rice-50 dark:border-white/15 dark:text-rice-100 dark:hover:bg-white/10"
+                    className="rounded-full border border-rice-200 px-3 py-1.5 text-left text-xs text-rice-800 transition hover:border-rice-400 hover:bg-rice-50 dark:border-white/15 dark:text-white dark:hover:bg-white/10"
                   >
                     {s}
                   </button>
@@ -231,7 +242,7 @@ export default function ChatAssistant({ series, seriesLabel }) {
               ) : (
                 <div
                   key={i}
-                  className="max-w-[90%] animate-[fadeIn_.25s_ease-out] break-words rounded-2xl rounded-tl-sm bg-rice-50 px-3.5 py-2.5 text-rice-900/90 dark:bg-white/5 dark:text-rice-100/90"
+                  className="max-w-[90%] animate-[fadeIn_.25s_ease-out] break-words rounded-2xl rounded-tl-sm bg-rice-50 px-3.5 py-2.5 text-rice-900/90 dark:bg-white/5 dark:text-white"
                 >
                   <RichText text={m.text} />
                 </div>
@@ -280,18 +291,18 @@ export default function ChatAssistant({ series, seriesLabel }) {
                 onKeyDown={onKeyDown}
                 placeholder="Ask about rice prices or the model…"
                 aria-label="Your question"
-                className="max-h-28 min-h-[24px] flex-1 resize-none bg-transparent text-sm text-rice-900 placeholder:text-rice-900/40 focus:outline-none dark:text-white dark:placeholder:text-rice-100/40"
+                className="max-h-28 min-h-[24px] flex-1 resize-none bg-transparent text-sm text-rice-900 placeholder:text-rice-900/40 focus:outline-none dark:text-white dark:placeholder:text-white/50"
               />
               <button
                 type="submit"
-                disabled={busy || !input.trim() || over}
+                disabled={busy || streaming || !input.trim() || over}
                 aria-label="Send"
                 className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-rice-700 text-white transition hover:bg-rice-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-rice-500 dark:text-rice-950"
               >
                 <ArrowUp className="h-4 w-4" />
               </button>
             </div>
-            <div className="mt-1.5 flex items-center justify-between px-1 text-[10.5px] text-rice-900/45 dark:text-rice-100/45">
+            <div className="mt-1.5 flex items-center justify-between px-1 text-[10.5px] text-rice-900/45 dark:text-white/70">
               <span>AI can make mistakes. Numbers come from the P-RICE model. Not financial advice.</span>
               <span className={over ? "font-semibold text-red-600 dark:text-red-400" : ""}>
                 {input.length}/{MAX_CHARS}

@@ -4,14 +4,14 @@ import { downloadCSV } from "../utils/export";
 const DIRECTION_ICON = {
   increase: { Icon: TrendingUp, tone: "text-emerald-600 dark:text-emerald-400" },
   decrease: { Icon: TrendingDown, tone: "text-red-600 dark:text-red-400" },
-  flat: { Icon: Minus, tone: "text-slate-500 dark:text-slate-400" },
+  flat: { Icon: Minus, tone: "text-slate-500 dark:text-white/80" },
 };
 
 const CONFIDENCE_TONE = {
   High: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
   Moderate: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
   Low: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
-  Unknown: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+  Unknown: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-white",
 };
 
 function toCSVRows(rows, horizon) {
@@ -45,7 +45,7 @@ export default function CompareTable({ rows, horizon, onSelectSeries }) {
     <div className="rounded-2xl border border-rice-100 bg-white shadow-sm dark:border-white/10 dark:bg-white/5">
       <div className="flex items-center justify-between border-b border-rice-100 p-4 dark:border-white/10">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-rice-600 dark:text-rice-300">
+          <p className="text-xs font-semibold uppercase tracking-wide text-rice-600 dark:text-white">
             Compare All Rice Types
           </p>
           <h3 className="text-sm text-rice-900 dark:text-white">
@@ -54,7 +54,7 @@ export default function CompareTable({ rows, horizon, onSelectSeries }) {
         </div>
         <button
           onClick={() => downloadCSV(`p-rice-compare-${horizon}mo.csv`, toCSVRows(rows, horizon))}
-          className="flex items-center gap-1.5 rounded-lg border border-rice-700 px-3 py-1.5 text-xs font-semibold text-rice-700 hover:bg-rice-50 dark:border-rice-400 dark:text-rice-300 dark:hover:bg-white/10"
+          className="flex items-center gap-1.5 rounded-lg border border-rice-700 px-3 py-1.5 text-xs font-semibold text-rice-700 hover:bg-rice-50 dark:border-rice-400 dark:text-white dark:hover:bg-white/10"
         >
           <Download className="h-3.5 w-3.5" />
           Export CSV
@@ -64,7 +64,7 @@ export default function CompareTable({ rows, horizon, onSelectSeries }) {
       <div className="overflow-x-auto">
         <table className="w-full min-w-[720px] text-sm">
           <thead>
-            <tr className="border-b border-rice-100 text-left text-xs uppercase tracking-wide text-rice-600 dark:border-white/10 dark:text-rice-300">
+            <tr className="border-b border-rice-100 text-left text-xs uppercase tracking-wide text-rice-600 dark:border-white/10 dark:text-white">
               <th className="px-4 py-3 font-semibold">Rice Type</th>
               <th className="px-4 py-3 font-semibold">Current Price</th>
               <th className="px-4 py-3 font-semibold">Forecast Price</th>
@@ -85,7 +85,7 @@ export default function CompareTable({ rows, horizon, onSelectSeries }) {
                 >
                   <td className="px-4 py-3">
                     <p className="font-semibold text-rice-900 dark:text-white">{r.origin}</p>
-                    <p className="text-xs text-rice-600 dark:text-rice-300">{r.variety}</p>
+                    <p className="text-xs text-rice-600 dark:text-white">{r.variety}</p>
                   </td>
                   <td className="px-4 py-3 text-rice-900 dark:text-white">
                     {r.card ? `₱${r.card.currentPrice.toFixed(2)}` : "—"}
@@ -111,7 +111,7 @@ export default function CompareTable({ rows, horizon, onSelectSeries }) {
           </tbody>
         </table>
       </div>
-      <p className="border-t border-rice-100 p-3 text-center text-xs text-rice-600 dark:border-white/10 dark:text-rice-300">
+      <p className="border-t border-rice-100 p-3 text-center text-xs text-rice-600 dark:border-white/10 dark:text-white">
         Click a row to open that rice type in the single-view dashboard.
       </p>
     </div>

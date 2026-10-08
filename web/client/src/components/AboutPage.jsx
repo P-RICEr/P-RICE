@@ -43,12 +43,12 @@ export default function AboutPage() {
           <img src="/brand/logo-full.png" alt="P-RICE" className="mx-auto h-24 w-auto dark:hidden" />
           <img src="/brand/logo-full-dark.png" alt="P-RICE" className="mx-auto hidden h-24 w-auto dark:block" />
         </h1>
-        <p className="mt-1 text-sm text-rice-700 dark:text-rice-300">
+        <p className="mt-1 text-sm text-rice-700 dark:text-white">
           An XGBoost Regression Based Model for Philippine Rice Price Forecasting
         </p>
       </div>
 
-      <div className="rounded-2xl border border-rice-100 bg-white p-6 text-sm leading-relaxed text-rice-900/90 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-rice-100/90">
+      <div className="rounded-2xl border border-rice-100 bg-white p-6 text-sm leading-relaxed text-rice-900/90 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-white">
         <p>
           Rice is a basic commodity and a staple of Filipino cuisine, and keeping it affordable
           is essential to the nutrition and well-being of Filipinos. But rice prices in the
@@ -64,7 +64,7 @@ export default function AboutPage() {
       </div>
 
       <div>
-        <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-rice-700 dark:text-rice-300">
+        <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-rice-700 dark:text-white">
           <Target className="h-4 w-4" />
           Supports these Sustainable Development Goals
         </h2>
@@ -74,16 +74,16 @@ export default function AboutPage() {
               key={s.n}
               className="rounded-xl border border-rice-100 bg-white p-4 dark:border-white/10 dark:bg-white/5"
             >
-              <p className="text-xs font-bold text-rice-600 dark:text-rice-300">SDG {s.n}</p>
+              <p className="text-xs font-bold text-rice-600 dark:text-white">SDG {s.n}</p>
               <p className="text-sm font-semibold text-rice-900 dark:text-white">{s.title}</p>
-              <p className="mt-1 text-xs text-rice-900/70 dark:text-rice-100/70">{s.text}</p>
+              <p className="mt-1 text-xs text-rice-900/70 dark:text-white/80">{s.text}</p>
             </div>
           ))}
         </div>
       </div>
 
       <div>
-        <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-rice-700 dark:text-rice-300">
+        <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-rice-700 dark:text-white">
           <Users className="h-4 w-4" />
           Who this helps
         </h2>
@@ -99,8 +99,8 @@ export default function AboutPage() {
         </ul>
       </div>
 
-      <div className="flex items-start gap-3 rounded-xl border border-rice-100 bg-rice-50 p-4 text-xs text-rice-900/80 dark:border-white/10 dark:bg-white/5 dark:text-rice-100/80">
-        <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-rice-700 dark:text-rice-300" />
+      <div className="flex items-start gap-3 rounded-xl border border-rice-100 bg-rice-50 p-4 text-xs text-rice-900/80 dark:border-white/10 dark:bg-white/5 dark:text-white">
+        <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-rice-700 dark:text-white" />
         <p>
           See <strong>Chapter 1 (Introduction)</strong> of the P-RICE research paper for the full
           context, research questions, objectives, significance, and scope/limitations behind

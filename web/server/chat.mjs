@@ -242,12 +242,17 @@ export function buildFacts(deps) {
 
 // ---------- 5. Output check ----------
 
+export const BLOCKED_REPLY =
+  "Sorry, I can't share that. Ask me about the rice price forecasts or the P-RICE results instead.";
+
+// Anything that looks like a key or our own instructions.
+export function isUnsafe(text) {
+  return /AIza[0-9A-Za-z_-]{20,}|AQ\.[0-9A-Za-z_-]{20,}/.test(text) || /FACTS block|SCOPE\.|SAFETY\./.test(text);
+}
+
 export function cleanReply(text) {
   let t = String(text || "").trim();
-  // Never pass anything that looks like a key or our own instructions.
-  if (/AIza[0-9A-Za-z_-]{20,}|AQ\.[0-9A-Za-z_-]{20,}/.test(t) || /FACTS block|SCOPE\.|SAFETY\./.test(t)) {
-    return "Sorry, I can't share that. Ask me about the rice price forecasts or the P-RICE results instead.";
-  }
+  if (isUnsafe(t)) return BLOCKED_REPLY;
   if (t.length > 2500) t = t.slice(0, 2500).replace(/\s+\S*$/, "") + "…";
   return t;
 }

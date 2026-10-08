@@ -24,7 +24,7 @@ const CONF_TONE = {
   High: "bg-emerald-100 text-emerald-800 dark:bg-emerald-400/15 dark:text-emerald-300",
   Moderate: "bg-amber-100 text-amber-800 dark:bg-amber-400/15 dark:text-amber-300",
   Low: "bg-red-100 text-red-800 dark:bg-red-400/15 dark:text-red-300",
-  Unknown: "bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-slate-300",
+  Unknown: "bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-white",
 };
 
 // Plain-language summary built only from the model's numbers (SHAP values),
@@ -59,7 +59,7 @@ function Segmented({ options, value, onChange, size = "md", label }) {
           className={`inline-flex items-center gap-1 rounded-full font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rice-400 ${pad} ${
             value === v
               ? "bg-white text-rice-900 shadow-sm dark:bg-rice-600 dark:text-white"
-              : "text-rice-700 hover:text-rice-900 dark:text-rice-200 dark:hover:text-white"
+              : "text-rice-700 hover:text-rice-900 dark:text-white dark:hover:text-white"
           }`}
         >
           {Icon && <Icon className="h-3 w-3" />}
@@ -153,7 +153,7 @@ export default function FutureForecast({ series, seriesLabel }) {
     <div className="rounded-2xl border border-rice-100 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-rice-900">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-rice-600 dark:text-rice-300">
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-rice-600 dark:text-white">
             <CalendarClock className="h-4 w-4" />
             Next forecast
           </p>
@@ -169,7 +169,7 @@ export default function FutureForecast({ series, seriesLabel }) {
               className={`rounded-full px-3 py-1 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rice-400 ${
                 r.horizon === row.horizon
                   ? "bg-rice-700 text-white shadow-sm"
-                  : "text-rice-700 hover:bg-white dark:text-rice-200 dark:hover:bg-white/10"
+                  : "text-rice-700 hover:bg-white dark:text-white dark:hover:bg-white/10"
               }`}
             >
               {new Date(r.targetDate + "T00:00:00Z").toLocaleDateString("en-US", {
@@ -184,13 +184,13 @@ export default function FutureForecast({ series, seriesLabel }) {
 
       <div className="grid gap-6 md:grid-cols-[220px_1fr]">
         <div>
-          <p className="text-xs text-rice-900/60 dark:text-rice-100/60">{monthYear(row.targetDate)}</p>
+          <p className="text-xs text-rice-900/60 dark:text-white/80">{monthYear(row.targetDate)}</p>
           <p className="text-3xl font-extrabold text-rice-900 dark:text-white">
             {peso(row.forecast)}
-            <span className="text-base font-medium text-rice-900/60 dark:text-rice-100/60">/kg</span>
+            <span className="text-base font-medium text-rice-900/60 dark:text-white/80">/kg</span>
           </p>
           {/* Same colors as the factor bars: up = pricier (red), down = cheaper (green). */}
-          <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-rice-900 dark:text-rice-100">
+          <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-rice-900 dark:text-white">
             {up ? (
               <ArrowUp className="h-4 w-4" style={{ color: "var(--p-rice-push-up)" }} />
             ) : (
@@ -212,7 +212,7 @@ export default function FutureForecast({ series, seriesLabel }) {
         <div>
           {/* ---- Why this price? ---- */}
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-rice-700 dark:text-rice-300">
+            <p className="text-xs font-semibold uppercase tracking-wide text-rice-700 dark:text-white">
               Why this price?
             </p>
             {aiEnabled && (
@@ -248,14 +248,14 @@ export default function FutureForecast({ series, seriesLabel }) {
               mode === "ai"
                 ? "border border-rice-200 bg-gradient-to-br from-rice-50 to-white dark:border-rice-400/20 dark:from-rice-400/10 dark:to-transparent"
                 : "bg-rice-50/70 dark:bg-white/5"
-            } text-rice-900/90 dark:text-rice-100/90`}
+            } text-rice-900/90 dark:text-white`}
           >
             {mode === "summary" && <p>{summary(seriesLabel, row)}</p>}
 
             {mode === "ai" && ai.status === "loading" && (
               <>
                 <SkeletonLines />
-                <p className="mt-2 text-[11px] text-rice-900/50 dark:text-rice-100/50">Writing an explanation…</p>
+                <p className="mt-2 text-[11px] text-rice-900/50 dark:text-white/80">Writing an explanation…</p>
               </>
             )}
 
@@ -278,7 +278,7 @@ export default function FutureForecast({ series, seriesLabel }) {
           </div>
 
           {mode === "ai" && ai.status === "done" && (
-            <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-rice-900/55 dark:text-rice-100/55">
+            <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-rice-900/55 dark:text-white/80">
               <span className="flex items-center gap-1">
                 <Sparkles className="h-3 w-3" />
                 Written by AI from the numbers on this card. Check them before quoting.
@@ -306,7 +306,7 @@ export default function FutureForecast({ series, seriesLabel }) {
                 const isUp = r.effect > 0;
                 return (
                   <div key={r.factor} className="grid grid-cols-[120px_1fr_64px] items-center gap-3 sm:grid-cols-[140px_1fr_64px]">
-                    <span className="truncate text-xs text-rice-900 dark:text-rice-100" title={r.label}>
+                    <span className="truncate text-xs text-rice-900 dark:text-white" title={r.label}>
                       {r.label}
                     </span>
                     <div className="relative h-2.5 rounded-full bg-rice-50 dark:bg-white/10">
@@ -318,14 +318,14 @@ export default function FutureForecast({ series, seriesLabel }) {
                         }}
                       />
                     </div>
-                    <span className="flex items-center justify-end gap-0.5 text-xs font-semibold tabular-nums text-rice-900 dark:text-rice-100">
+                    <span className="flex items-center justify-end gap-0.5 text-xs font-semibold tabular-nums text-rice-900 dark:text-white">
                       {isUp ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
                       {peso(Math.abs(r.effect))}
                     </span>
                   </div>
                 );
               })}
-              <p className="pt-1 text-[11px] text-rice-900/50 dark:text-rice-100/50">
+              <p className="pt-1 text-[11px] text-rice-900/50 dark:text-white/80">
                 How much each factor pushed this forecast up (red) or down (green), in ₱/kg, straight from
                 the model.
               </p>
@@ -334,7 +334,7 @@ export default function FutureForecast({ series, seriesLabel }) {
         </div>
       </div>
 
-      <p className="mt-4 border-t border-rice-100 pt-3 text-[11px] leading-relaxed text-rice-900/50 dark:border-white/10 dark:text-rice-100/50">
+      <p className="mt-4 border-t border-rice-100 pt-3 text-[11px] leading-relaxed text-rice-900/50 dark:border-white/10 dark:text-white/80">
         Unlike the card above, this is a true forecast: the model was retrained on all data up to{" "}
         {monthYear(row.originDate)} and the target months are not in the dataset yet. Market factors are
         held at their latest values. Only horizons where XGBoost beat both ARIMA and Naive on the test set

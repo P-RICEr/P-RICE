@@ -39,10 +39,10 @@ const chip = (active) =>
   `rounded-full px-3 py-1 text-xs font-semibold transition ${
     active
       ? "bg-rice-700 text-white shadow-sm"
-      : "text-rice-700 hover:bg-white dark:text-rice-200 dark:hover:bg-white/10"
+      : "text-rice-700 hover:bg-white dark:text-white dark:hover:bg-white/10"
   }`;
 
-const legendText = (v) => <span className="text-rice-900 dark:text-rice-100">{v}</span>;
+const legendText = (v) => <span className="text-rice-900 dark:text-white">{v}</span>;
 
 function horizonLabel(h, unit, short = false) {
   if (short) return `${h} ${unit === "week" ? "wk" : "mo"}`;
@@ -73,7 +73,7 @@ function ChartTooltip({ active, payload, label, unit, metric }) {
         {unit ? horizonLabel(label, unit) + " ahead" : label}
       </p>
       {payload.map((p) => (
-        <p key={p.dataKey} className="flex items-center gap-2 text-rice-900 dark:text-rice-100">
+        <p key={p.dataKey} className="flex items-center gap-2 text-rice-900 dark:text-white">
           <span className="inline-block h-2 w-2 rounded-full" style={{ background: p.color }} />
           {p.name}: {fmt(p.value)} {m?.unit}
         </p>
@@ -85,11 +85,11 @@ function ChartTooltip({ active, payload, label, unit, metric }) {
 function Stat({ label, value, sub }) {
   return (
     <div className={card}>
-      <p className="text-xs font-semibold uppercase tracking-wide text-rice-600 dark:text-rice-300">
+      <p className="text-xs font-semibold uppercase tracking-wide text-rice-600 dark:text-white">
         {label}
       </p>
       <p className="mt-1 text-xl font-extrabold text-rice-900 dark:text-white">{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-rice-900/60 dark:text-rice-100/60">{sub}</p>}
+      {sub && <p className="mt-0.5 text-xs text-rice-900/60 dark:text-white/80">{sub}</p>}
     </div>
   );
 }
@@ -111,15 +111,15 @@ function SectionTitle({ title, sub, children }) {
     <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
       <div>
         <h3 className="text-sm font-bold text-rice-900 dark:text-white">{title}</h3>
-        {sub && <p className="text-xs text-rice-900/60 dark:text-rice-100/60">{sub}</p>}
+        {sub && <p className="text-xs text-rice-900/60 dark:text-white/80">{sub}</p>}
       </div>
       {children}
     </div>
   );
 }
 
-const th = "px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-rice-700 dark:text-rice-300";
-const td = "px-3 py-2 text-sm text-rice-900 dark:text-rice-100";
+const th = "px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-rice-700 dark:text-white";
+const td = "px-3 py-2 text-sm text-rice-900 dark:text-white";
 
 export default function ResultsPage() {
   const [freq, setFreq] = useState("monthly");
@@ -192,7 +192,7 @@ export default function ResultsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-extrabold text-rice-900 dark:text-white">Test Results</h2>
-          <p className="text-xs text-rice-900/60 dark:text-rice-100/60">
+          <p className="text-xs text-rice-900/60 dark:text-white/80">
             How P-RICE (XGBoost) performed on the held-out test set, against ARIMA and a naive
             "same as last {unit || "period"}" forecast.
           </p>
@@ -257,7 +257,7 @@ export default function ResultsPage() {
               title={`Test ${metricInfo.label} by forecast horizon`}
               sub={`${metricInfo.hint} (${metricInfo.unit}). Lower is better.`}
             />
-            <div className="text-rice-700 dark:text-rice-200">
+            <div className="text-rice-700 dark:text-white">
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={byHorizon} margin={{ top: 8, right: 16, bottom: 0, left: -8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.2} />
@@ -304,7 +304,7 @@ export default function ResultsPage() {
                     ]),
                   ])
                 }
-                className="flex items-center gap-1 rounded-lg border border-rice-200 px-2.5 py-1.5 text-xs font-semibold text-rice-700 hover:bg-rice-50 dark:border-white/20 dark:text-rice-200 dark:hover:bg-white/10"
+                className="flex items-center gap-1 rounded-lg border border-rice-200 px-2.5 py-1.5 text-xs font-semibold text-rice-700 hover:bg-rice-50 dark:border-white/20 dark:text-white dark:hover:bg-white/10"
               >
                 <Download className="h-3.5 w-3.5" /> CSV
               </button>
@@ -342,7 +342,7 @@ export default function ResultsPage() {
                 </tbody>
               </table>
             </div>
-            <p className="mt-3 text-xs text-rice-900/60 dark:text-rice-100/60">
+            <p className="mt-3 text-xs text-rice-900/60 dark:text-white/80">
               Highlighted rows: XGBoost has a lower MAE than both ARIMA and Naive. Improvement is the
               percent reduction in MAE.
             </p>
@@ -366,7 +366,7 @@ export default function ResultsPage() {
                 ))}
               </div>
             </SectionTitle>
-            <div className="text-rice-700 dark:text-rice-200">
+            <div className="text-rice-700 dark:text-white">
               <ResponsiveContainer width="100%" height={460}>
                 <BarChart
                   data={byType}
@@ -403,7 +403,7 @@ export default function ResultsPage() {
               </ResponsiveContainer>
             </div>
             <details className="mt-3 text-sm">
-              <summary className="cursor-pointer text-xs font-semibold text-rice-700 dark:text-rice-300">
+              <summary className="cursor-pointer text-xs font-semibold text-rice-700 dark:text-white">
                 Show as table
               </summary>
               <div className="mt-2 overflow-x-auto">
@@ -443,7 +443,7 @@ export default function ResultsPage() {
                 title="Do the market factors help? (ablation)"
                 sub="Test MAE of XGBoost with price history only vs. price history + 8 market factors. Lower is better."
               />
-              <div className="text-rice-700 dark:text-rice-200">
+              <div className="text-rice-700 dark:text-white">
                 <ResponsiveContainer width="100%" height={260}>
                   <LineChart data={data.ablation} margin={{ top: 8, right: 16, bottom: 0, left: -8 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.2} />
@@ -458,14 +458,14 @@ export default function ResultsPage() {
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {data.ablation.map((a) => (
-                  <span key={a.horizon} className="rounded-lg border border-rice-100 px-2.5 py-1 text-xs text-rice-900 dark:border-white/10 dark:text-rice-100">
+                  <span key={a.horizon} className="rounded-lg border border-rice-100 px-2.5 py-1 text-xs text-rice-900 dark:border-white/10 dark:text-white">
                     {horizonLabel(a.horizon, unit, true)}:{" "}
                     <strong>{a.reduction > 0 ? "−" : "+"}{fmt(Math.abs(a.reduction), 1)}% MAE</strong>{" "}
                     {a.factorsHelp ? "with factors" : "(factors don't help)"}
                   </span>
                 ))}
               </div>
-              <p className="mt-3 text-xs text-rice-900/60 dark:text-rice-100/60">
+              <p className="mt-3 text-xs text-rice-900/60 dark:text-white/80">
                 From P-RICE Extra Analysis (Monthly). Both models were tuned and tested the same way, in the
                 same run, so the comparison is fair. Numbers can differ slightly from the table above because
                 that comes from a separate run.
@@ -514,7 +514,7 @@ export default function ResultsPage() {
                   </tbody>
                 </table>
               </div>
-              <p className="mt-3 text-xs text-rice-900/60 dark:text-rice-100/60">
+              <p className="mt-3 text-xs text-rice-900/60 dark:text-white/80">
                 Only {data.dieboldMariano[0].months} months could be tested, so the test has low power. "Not
                 significant" means there is not enough evidence yet, not that the models are equal.
               </p>
@@ -530,7 +530,7 @@ export default function ResultsPage() {
             <div className="space-y-2">
               {data.shapFactors.map((f) => (
                 <div key={f.factor} className="group grid grid-cols-[150px_1fr_56px] items-center gap-3" title={`${f.label}: ${fmt(f.meanAbsShap, 4)}`}>
-                  <span className="truncate text-xs text-rice-900 dark:text-rice-100">{f.label}</span>
+                  <span className="truncate text-xs text-rice-900 dark:text-white">{f.label}</span>
                   <div className="h-3 rounded-full bg-rice-50 dark:bg-white/10">
                     <div
                       className="h-3 rounded-full transition-opacity group-hover:opacity-80"
@@ -540,7 +540,7 @@ export default function ResultsPage() {
                       }}
                     />
                   </div>
-                  <span className="text-right text-xs tabular-nums text-rice-900/70 dark:text-rice-100/70">
+                  <span className="text-right text-xs tabular-nums text-rice-900/70 dark:text-white/80">
                     {fmt(f.meanAbsShap, 3)}
                   </span>
                 </div>
@@ -557,7 +557,7 @@ export default function ResultsPage() {
 
             <div className="mt-4 space-y-6">
               <div className="overflow-x-auto">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-rice-600 dark:text-rice-300">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-rice-600 dark:text-white">
                   Validation vs test ({metricInfo.label})
                 </p>
                 <table className="w-full min-w-[520px]">
@@ -587,7 +587,7 @@ export default function ResultsPage() {
               </div>
 
               <div className="overflow-x-auto">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-rice-600 dark:text-rice-300">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-rice-600 dark:text-white">
                   Tuned XGBoost settings per horizon
                 </p>
                 <table className="w-full min-w-[720px]">
@@ -611,13 +611,13 @@ export default function ResultsPage() {
               </div>
 
               <div className="overflow-x-auto">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-rice-600 dark:text-rice-300">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-rice-600 dark:text-white">
                   ARIMA order per rice type (p, d, q)
                 </p>
                 <div className="grid gap-2 sm:grid-cols-4">
                   {data.arimaOrders.map((a) => (
                     <div key={a.series} className="rounded-lg border border-rice-100 px-3 py-2 text-sm dark:border-white/10">
-                      <p className="text-xs text-rice-900/60 dark:text-rice-100/60">{a.series}</p>
+                      <p className="text-xs text-rice-900/60 dark:text-white/80">{a.series}</p>
                       <p className="font-mono font-semibold text-rice-900 dark:text-white">{a.order}</p>
                     </div>
                   ))}
@@ -626,7 +626,7 @@ export default function ResultsPage() {
             </div>
           </details>
 
-          <p className="text-center text-[11px] text-rice-900/50 dark:text-rice-100/50">
+          <p className="text-center text-[11px] text-rice-900/50 dark:text-white/80">
             Source: {data.file}, last updated{" "}
             {new Date(data.updatedAt).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" })}.
             Re-run the notebook to refresh these numbers.

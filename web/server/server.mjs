@@ -13,7 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import XLSX from "xlsx";
-import { loadEnv, geminiConfig, callGemini, buildExplainPrompt } from "./gemini.mjs";
+import { loadEnv, geminiConfig, callGemini, streamGemini, buildExplainPrompt } from "./gemini.mjs";
 import {
   rateLimit,
   cleanMessages,
@@ -21,6 +21,8 @@ import {
   guessLang,
   buildFacts,
   cleanReply,
+  isUnsafe,
+  BLOCKED_REPLY,
   CHAT_RULES,
 } from "./chat.mjs";
 
@@ -746,10 +748,44 @@ app.post("/api/chat", rateLimit, async (req, res) => {
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: m.text }],
     }));
-    const out = await callGemini({ system, contents }, { temperature: 0.2 });
-    res.json({ text: cleanReply(out.text) });
+
+    // Stream the answer as it is written (one JSON object per line), so the
+    // first words show up in a second or two instead of after the whole reply.
+    let full = "";
+    let started = false;
+    const start = () => {
+      if (started) return;
+      started = true;
+      res.status(200).set({
+        "Content-Type": "application/x-ndjson; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "X-Accel-Buffering": "no",
+      });
+      res.flushHeaders();
+    };
+    const send = (obj) => res.write(JSON.stringify(obj) + "\n");
+
+    for await (const piece of streamGemini({ system, contents }, { temperature: 0.2 })) {
+      start();
+      full += piece;
+      if (isUnsafe(full)) {
+        // Output check failed mid-answer: replace everything sent so far.
+        send({ replace: BLOCKED_REPLY });
+        send({ done: true });
+        return res.end();
+      }
+      send({ delta: piece });
+      if (full.length > 2500) break;
+    }
+    start();
+    send({ done: true });
+    res.end();
   } catch (err) {
     console.error("Gemini (chat):", err.message);
+    if (res.headersSent) {
+      res.write(JSON.stringify({ error: publicAiError(err) }) + "\n");
+      return res.end();
+    }
     res.status(502).json({ error: publicAiError(err) });
   }
 });
