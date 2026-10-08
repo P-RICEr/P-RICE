@@ -436,6 +436,91 @@ export default function ResultsPage() {
             </details>
           </div>
 
+          {/* 3b. Ablation */}
+          {data.ablation?.length > 0 && (
+            <div className={card}>
+              <SectionTitle
+                title="Do the market factors help? (ablation)"
+                sub="Test MAE of XGBoost with price history only vs. price history + 8 market factors. Lower is better."
+              />
+              <div className="text-rice-700 dark:text-rice-200">
+                <ResponsiveContainer width="100%" height={260}>
+                  <LineChart data={data.ablation} margin={{ top: 8, right: 16, bottom: 0, left: -8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.2} />
+                    <XAxis dataKey="horizon" tickFormatter={(h) => horizonLabel(h, unit, true)} tick={{ fontSize: 12 }} stroke="currentColor" />
+                    <YAxis tick={{ fontSize: 12 }} stroke="currentColor" width={48} />
+                    <Tooltip content={<ChartTooltip unit={unit} metric="mae" />} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} formatter={legendText} />
+                    <Line type="monotone" dataKey="priceOnlyMae" name="Price history only" stroke="var(--p-rice-ablation)" strokeWidth={2} strokeDasharray="5 4" dot={{ r: 4, strokeWidth: 2, strokeDasharray: "0", fill: "var(--chart-surface)" }} isAnimationActive={false} />
+                    <Line type="monotone" dataKey="fullMae" name="Price + 8 market factors" stroke="var(--p-rice-xgb)" strokeWidth={2} dot={{ r: 4, strokeWidth: 2, fill: "var(--chart-surface)" }} isAnimationActive={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {data.ablation.map((a) => (
+                  <span key={a.horizon} className="rounded-lg border border-rice-100 px-2.5 py-1 text-xs text-rice-900 dark:border-white/10 dark:text-rice-100">
+                    {horizonLabel(a.horizon, unit, true)}:{" "}
+                    <strong>{a.reduction > 0 ? "−" : "+"}{fmt(Math.abs(a.reduction), 1)}% MAE</strong>{" "}
+                    {a.factorsHelp ? "with factors" : "(factors don't help)"}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-3 text-xs text-rice-900/60 dark:text-rice-100/60">
+                From P-RICE Extra Analysis (Monthly). Both models were tuned and tested the same way, in the
+                same run, so the comparison is fair. Numbers can differ slightly from the table above because
+                that comes from a separate run.
+              </p>
+            </div>
+          )}
+
+          {/* 3c. Diebold-Mariano */}
+          {data.dieboldMariano?.length > 0 && (
+            <div className={card}>
+              <SectionTitle
+                title="Is the difference significant? (Diebold-Mariano test)"
+                sub="One-sided test that XGBoost is more accurate (absolute error), validation + test months, Harvey-Leybourne-Newbold correction."
+              />
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[560px]">
+                  <thead className="border-b border-rice-100 dark:border-white/10">
+                    <tr>
+                      <th className={th}>Horizon</th>
+                      <th className={th}>XGBoost vs</th>
+                      <th className={th}>Months</th>
+                      <th className={th}>DM stat</th>
+                      <th className={th}>p-value</th>
+                      <th className={th}>Result</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-rice-100 dark:divide-white/10">
+                    {data.dieboldMariano.map((d) => (
+                      <tr key={`${d.horizon}-${d.versus}`} className={d.sig5 ? "bg-emerald-50 dark:bg-emerald-400/10" : ""}>
+                        <td className={td}>{horizonLabel(d.horizon, unit)}</td>
+                        <td className={td}>{d.versus}</td>
+                        <td className={td}>{d.months}</td>
+                        <td className={td}>{fmt(d.stat)}</td>
+                        <td className={td}>{fmt(d.pValue)}</td>
+                        <td className={td}>
+                          {d.pValue == null
+                            ? "Not computable"
+                            : d.sig5
+                            ? "Significant (5%)"
+                            : d.sig10
+                            ? "Weak (10%)"
+                            : "Not significant"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-3 text-xs text-rice-900/60 dark:text-rice-100/60">
+                Only {data.dieboldMariano[0].months} months could be tested, so the test has low power. "Not
+                significant" means there is not enough evidence yet, not that the models are equal.
+              </p>
+            </div>
+          )}
+
           {/* 4. SHAP */}
           <div className={card}>
             <SectionTitle

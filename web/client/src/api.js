@@ -17,5 +17,6 @@ export const api = {
     getJSON(`${BASE}/forecast?series=${encodeURIComponent(series)}&horizon=${horizon}`),
   modelInfo: (horizon) => getJSON(`${BASE}/model-info?horizon=${horizon}`),
   compare: (horizon) => getJSON(`${BASE}/compare?horizon=${horizon}`),
+  future: (series) => getJSON(`${BASE}/future?series=${encodeURIComponent(series)}`),
   results: (freq) => getJSON(`${BASE}/results?freq=${freq}`),
 };

@@ -10,18 +10,20 @@ body {
   background-color: #0d2b1a;
 }
 
-/* Line colors as CSS variables, not JS props, so toggling dark mode never
+/* Forecast = XGBoost (P-RICE), so it uses the same blue as XGBoost on
+   the Test Results tab. Actual price stays rice green.
+   Line colors as CSS variables, not JS props, so toggling dark mode never
    changes the `stroke` prop Recharts sees on <Line>. If it did, Recharts
    would treat that as a data change and replay the entry animation,
    making the lines vanish for a moment every time the theme is switched. */
 :root {
   --p-rice-actual-stroke: #256639;
-  --p-rice-forecast-stroke: #dc2626;
+  --p-rice-forecast-stroke: #2a78d6;
 }
 
 .dark {
   --p-rice-actual-stroke: #6ee7a0;
-  --p-rice-forecast-stroke: #f87171;
+  --p-rice-forecast-stroke: #3987e5;
 }
 
 /* Results tab: one fixed color per model (identity, never rank).
@@ -33,6 +35,9 @@ body {
   --p-rice-naive: #1baf7a;
   --p-rice-shap: #2f8047;
   --chart-surface: #ffffff;
+  --p-rice-push-up: #d03b3b;
+  --p-rice-push-down: #2f8047;
+  --p-rice-ablation: #8a8a84;
 }
 
 .dark {
@@ -41,6 +46,9 @@ body {
   --p-rice-naive: #199e70;
   --p-rice-shap: #3f9c58;
   --chart-surface: #12351f;
+  --p-rice-push-up: #e66767;
+  --p-rice-push-down: #5fb67a;
+  --p-rice-ablation: #a8a89f;
 }
 
 /* Recharts renders axis ticks and legend labels as SVG <text>, which is
