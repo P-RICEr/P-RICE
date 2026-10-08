@@ -93,6 +93,21 @@ After changing anything, click **Run All** again.
 
 ---
 
+## Optional: AI explanation (Gemini)
+
+The "Next forecast" card on the dashboard can ask Google Gemini to explain
+the forecast in plain English or Taglish. Gemini only rewrites the numbers
+already on the card (forecast, SHAP values, test error). The numbers
+themselves always come from the model.
+
+1. In `web/server`, copy `.env.example` to `.env`.
+2. Paste the key after `GEMINI_API_KEY=` (get one at https://aistudio.google.com/apikey).
+3. Check it: `npm run check:gemini`
+4. Restart the server (`npm start`). An "Explain with AI" button appears on the card.
+
+Never commit `.env`: it is already in `.gitignore`. Without a key, the
+dashboard works the same and simply hides the button.
+
 ## Troubleshooting
 
 | Problem | Fix |

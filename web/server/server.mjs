@@ -13,6 +13,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import XLSX from "xlsx";
+import { loadEnv, geminiConfig, callGemini, buildExplainPrompt } from "./gemini.mjs";
+
+loadEnv();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -590,30 +593,66 @@ function explainFuture(series, horizon, extra) {
   });
 }
 
+function futureRows(series) {
+  const extra = loadExtraResults();
+  if (!extra) return null;
+  const horizons = [...new Set(extra.future.map((r) => r.horizon))].sort((a, b) => a - b);
+  // Only offer horizons where XGBoost beat both benchmarks on the test set.
+  const { horizonDecision } = loadResults();
+  const trusted = horizonDecision.filter((h) => h.beatsArima && h.beatsNaive).map((h) => h.horizon);
+  const rows = extra.future
+    .filter((r) => r.series === series && trusted.includes(r.horizon))
+    .sort((a, b) => a.horizon - b.horizon)
+    .map((r) => ({
+      ...r,
+      forecast: Math.round(r.forecast * 100) / 100,
+      basePrice: Math.round(r.basePrice * 100) / 100,
+      changePct: Math.round(r.changePct * 100) / 100,
+      confidence: confidenceFromMape(r.testMape),
+      reasons: explainFuture(series, r.horizon, extra),
+    }));
+  return { horizons, trusted, rows, updatedAt: extra.updatedAt };
+}
+
 app.get("/api/future", (req, res) => {
   try {
-    const extra = loadExtraResults();
-    if (!extra) return res.json({ available: false });
     const series = req.query.series || "Local Special";
-    const horizons = [...new Set(extra.future.map((r) => r.horizon))].sort((a, b) => a - b);
-    // Only offer horizons where XGBoost beat both benchmarks on the test set.
-    const { horizonDecision } = loadResults();
-    const trusted = horizonDecision.filter((h) => h.beatsArima && h.beatsNaive).map((h) => h.horizon);
-    const rows = extra.future
-      .filter((r) => r.series === series && trusted.includes(r.horizon))
-      .sort((a, b) => a.horizon - b.horizon)
-      .map((r) => ({
-        ...r,
-        forecast: Math.round(r.forecast * 100) / 100,
-        basePrice: Math.round(r.basePrice * 100) / 100,
-        changePct: Math.round(r.changePct * 100) / 100,
-        confidence: confidenceFromMape(r.testMape),
-        reasons: explainFuture(series, r.horizon, extra),
-      }));
-    res.json({ available: true, series, horizons, trusted, rows, updatedAt: extra.updatedAt });
+    const data = futureRows(series);
+    if (!data) return res.json({ available: false });
+    res.json({ available: true, series, ...data });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ---- Optional Gemini explanation ----
+const explainCache = new Map();
+
+app.get("/api/explain/status", (req, res) => {
+  const { key, model } = geminiConfig();
+  res.json({ enabled: Boolean(key), model });
+});
+
+app.post("/api/explain", async (req, res) => {
+  try {
+    const series = String(req.body?.series || "Local Special");
+    const horizon = Number(req.body?.horizon);
+    const lang = req.body?.lang === "tl" ? "tl" : "en";
+    const data = futureRows(series);
+    const row = data?.rows.find((r) => r.horizon === horizon);
+    if (!row) return res.status(404).json({ error: "No forecast for that rice type and horizon" });
+
+    const cacheKey = `${series}|${horizon}|${lang}|${data.updatedAt}`;
+    if (explainCache.has(cacheKey)) return res.json({ ...explainCache.get(cacheKey), cached: true });
+
+    const out = await callGemini(buildExplainPrompt(series, row, lang));
+    const result = { text: out.text, model: out.model, lang };
+    explainCache.set(cacheKey, result);
+    res.json(result);
+  } catch (err) {
+    console.error("Gemini:", err.message);
+    res.status(502).json({ error: err.message });
   }
 });
 
@@ -640,6 +679,11 @@ const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`P-RICE API running on http://localhost:${PORT}`);
   console.log(`Reading model output from: ${RESULTS_XLSX}`);
+  console.log(
+    geminiConfig().key
+      ? `Gemini explanations: on (${geminiConfig().model})`
+      : "Gemini explanations: off (no GEMINI_API_KEY in web/server/.env)"
+  );
   if (!fs.existsSync(RESULTS_XLSX)) {
     console.warn(
       `WARNING: ${RESULTS_XLSX} not found yet. Run the notebook (Run All) first.`

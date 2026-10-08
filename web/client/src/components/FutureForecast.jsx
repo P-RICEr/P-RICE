@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowDown, ArrowUp, CalendarClock, Sparkles } from "lucide-react";
+import { ArrowDown, ArrowUp, Bot, CalendarClock, Loader2, Sparkles } from "lucide-react";
 import { api } from "../api";
 
 function monthYear(iso) {
@@ -40,6 +40,29 @@ function summary(seriesLabel, row) {
 export default function FutureForecast({ series, seriesLabel }) {
   const [data, setData] = useState(null);
   const [horizon, setHorizon] = useState(1);
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiLang, setAiLang] = useState("en");
+  const [ai, setAi] = useState({ status: "idle" }); // idle | loading | done | error
+
+  useEffect(() => {
+    api
+      .explainStatus()
+      .then((s) => setAiEnabled(Boolean(s.enabled)))
+      .catch(() => setAiEnabled(false));
+  }, []);
+
+  // A new rice type, month or language needs a new explanation.
+  useEffect(() => {
+    setAi({ status: "idle" });
+  }, [series, horizon, aiLang]);
+
+  function askGemini(h) {
+    setAi({ status: "loading" });
+    api
+      .explain(series, h, aiLang)
+      .then((r) => setAi({ status: "done", text: r.text, model: r.model }))
+      .catch((e) => setAi({ status: "error", error: e.message }));
+  }
 
   useEffect(() => {
     api
@@ -121,6 +144,59 @@ export default function FutureForecast({ series, seriesLabel }) {
             {summary(seriesLabel, row)}
           </p>
 
+          {aiEnabled && (
+            <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50/60 p-3 dark:border-sky-400/20 dark:bg-sky-400/5">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => askGemini(row.horizon)}
+                  disabled={ai.status === "loading"}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-sky-700 px-3 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:opacity-60 dark:bg-sky-500 dark:text-sky-950 dark:hover:bg-sky-400"
+                >
+                  {ai.status === "loading" ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Bot className="h-3.5 w-3.5" />
+                  )}
+                  {ai.status === "done" ? "Explain again" : "Explain with AI"}
+                </button>
+                <div className="flex rounded-full bg-white p-0.5 text-[11px] font-semibold dark:bg-white/10">
+                  {[
+                    ["en", "English"],
+                    ["tl", "Taglish"],
+                  ].map(([code, label]) => (
+                    <button
+                      key={code}
+                      onClick={() => setAiLang(code)}
+                      className={`rounded-full px-2.5 py-0.5 transition ${
+                        aiLang === code
+                          ? "bg-sky-700 text-white dark:bg-sky-500 dark:text-sky-950"
+                          : "text-sky-800 hover:bg-sky-50 dark:text-sky-200 dark:hover:bg-white/10"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {ai.status === "done" && (
+                <p className="mt-2 text-sm leading-relaxed text-rice-900/85 dark:text-rice-100/85">{ai.text}</p>
+              )}
+              {ai.status === "error" && (
+                <p className="mt-2 text-xs text-red-700 dark:text-red-300">
+                  The AI explanation is not available right now ({ai.error}). The summary above is still
+                  accurate.
+                </p>
+              )}
+              <p className="mt-2 text-[11px] text-rice-900/50 dark:text-rice-100/50">
+                {ai.status === "done"
+                  ? `Written by ${ai.model} from the forecast and SHAP numbers on this card.`
+                  : "Gemini rewrites the forecast and SHAP numbers on this card in plain language."}{" "}
+                AI can make mistakes: the numbers on this card are the official model output.
+              </p>
+            </div>
+          )}
+
           {row.reasons.length > 0 && (
             <div className="mt-4 space-y-2">
               {row.reasons.map((r) => {
@@ -147,8 +223,7 @@ export default function FutureForecast({ series, seriesLabel }) {
                 );
               })}
               <p className="pt-1 text-[11px] text-rice-900/50 dark:text-rice-100/50">
-                How much each factor pushed this forecast up or down (SHAP, in ₱/kg). Generated from the
-                model's numbers, not written by AI.
+                How much each factor pushed this forecast up or down (SHAP, in ₱/kg), straight from the model.
               </p>
             </div>
           )}
