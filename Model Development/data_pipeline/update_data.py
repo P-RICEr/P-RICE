@@ -31,6 +31,7 @@ still finish.
 """
 
 import argparse
+import re
 import json
 import sys
 import time
@@ -253,30 +254,67 @@ def search_openstat(text, db="DB"):
 
 def fetch_farmgate():
     """Find the palay farmgate price table by searching OpenSTAT, then
-    download it the same way as the other tables."""
-    hits = search_openstat("farmgate palay")
-    hits = [h for h in hits
-            if "farmgate" in h.get("title", "").lower() and "palay" in h.get("title", "").lower()]
+    download only the national palay rows.
+
+    PSA usually names these tables "Farmgate Prices of ... by Commodity",
+    with "Palay" as a commodity inside the table, not in the title. So the
+    search looks for "farmgate" in the title and then filters the
+    commodity values for palay.
+    """
+    hits, seen = [], set()
+    for text in ["farmgate palay", "farmgate", "farm gate", "palay price"]:
+        try:
+            for h in search_openstat(text):
+                key = (h.get("path"), h.get("id"))
+                if key not in seen:
+                    seen.add(key)
+                    hits.append(h)
+        except Exception:
+            continue
+    if hits:
+        pd.DataFrame(hits).to_csv(OUT / "openstat_farmgate_search.csv", index=False)
+    hits = [h for h in hits if re.search(r"farm\s*-?gate", h.get("title", ""), re.I)]
     if not hits:
-        raise RuntimeError("no OpenSTAT table with 'farmgate' and 'palay' in its title")
-    pd.DataFrame(hits).to_csv(OUT / "openstat_farmgate_search.csv", index=False)
-    # Prefer a monthly table if the title says so.
-    hits.sort(key=lambda h: ("month" not in h["title"].lower(), -h.get("score", 0)))
-    best = hits[0]
-    path = best["path"].strip("/").split("/")
-    say(f"     table: {best['title']}")
-    url = f"{OPENSTAT_API}DB/{'/'.join(path)}/{best['id']}"
-    meta = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
-    meta.raise_for_status()
-    variables = read_json(meta)["variables"]
-    say(f"     found at {url}")
-    # National figures only (keeps the download under OpenSTAT's size limit).
-    only = {}
-    for v in variables:
-        texts = [t.upper() for t in v.get("valueTexts", v["values"])]
-        if any("PHILIPPINES" == t.strip(". ") for t in texts):
-            only[v["code"]] = [c for c, t in zip(v["values"], texts) if t.strip(". ") == "PHILIPPINES"]
-    return download_openstat(url, variables, only)
+        raise RuntimeError("no OpenSTAT table with 'farmgate' in its title "
+                           "(see latest/openstat_farmgate_search.csv for what the search found)")
+    say(f"     {len(hits)} farmgate tables found:")
+    for h in hits[:8]:
+        say(f"       - {h['title'][:110]}")
+
+    def rank(h):
+        t = h["title"].lower()
+        return ("palay" not in t and "cereal" not in t and "rice" not in t,
+                "month" not in t,
+                -h.get("score", 0))
+    hits.sort(key=rank)
+
+    errors = []
+    for best in hits[:5]:
+        path = best["path"].strip("/").split("/")
+        url = f"{OPENSTAT_API}DB/{'/'.join(path)}/{best['id']}"
+        try:
+            meta = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+            meta.raise_for_status()
+            variables = read_json(meta)["variables"]
+        except Exception as e:
+            errors.append(f"{best['id']}: {e}")
+            continue
+        only, has_palay = {}, False
+        for v in variables:
+            texts = [t.upper().strip(". ") for t in v.get("valueTexts", v["values"])]
+            if "PHILIPPINES" in texts:
+                only[v["code"]] = [c for c, t in zip(v["values"], texts) if t == "PHILIPPINES"]
+            palay = [c for c, t in zip(v["values"], texts) if "PALAY" in t]
+            if palay:
+                only[v["code"]] = palay
+                has_palay = True
+        if not has_palay and "palay" not in best["title"].lower():
+            errors.append(f"{best['id']}: no palay rows")
+            continue
+        say(f"     table: {best['title']}")
+        say(f"     found at {url}")
+        return download_openstat(url, variables, only)
+    raise RuntimeError("farmgate tables found but none had palay: " + "; ".join(errors)[:300])
 
 
 # ------------------------------------------------------------ checking
