@@ -5,11 +5,12 @@ Run on your own computer (it needs internet access to FRED, NASA POWER and
 PSA OpenSTAT):
 
     cd "Model Development/data_pipeline"
-    pip install requests pandas
+    pip install requests pandas xlrd
     python update_data.py
 
 What it downloads (no API keys needed):
-  1. Brent crude oil, monthly (FRED series MCOILBRENTEU)
+  1. Brent crude oil, monthly (FRED series MCOILBRENTEU; if FRED is
+     blocked on your network, the same series from the U.S. EIA)
   2. Rainfall and temperature, daily (NASA POWER, same point and
      parameters as the paper: PRECTOTCORR and T2M at 14.5995 N, 120.9842 E)
   3. Rice stocks inventory (PSA OpenSTAT table 0032E4ECNV0)
@@ -30,10 +31,11 @@ still finish.
 """
 
 import argparse
+import json
 import sys
 import time
 from datetime import date
-from io import StringIO
+from io import BytesIO, StringIO
 from pathlib import Path
 
 import pandas as pd
@@ -87,18 +89,45 @@ def get_with_retry(urls, tries=3):
     raise last
 
 
-def fetch_brent(start=START):
+def read_json(resp):
+    # PSA OpenSTAT starts its JSON with a byte-order mark (BOM).
+    return json.loads(resp.content.decode("utf-8-sig"))
+
+
+def brent_from_fred():
     resp = get_with_retry([
         f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={FRED_SERIES}",
         f"https://fred.stlouisfed.org/series/{FRED_SERIES}/downloaddata/{FRED_SERIES}.csv",
-    ])
+    ], tries=2)
     df = pd.read_csv(StringIO(resp.text))
     date_col = df.columns[0]                     # "observation_date" or "DATE"
-    df = df.rename(columns={date_col: "Date", FRED_SERIES: "Brent_Oil_USD"})
-    df["Date"] = pd.to_datetime(df["Date"])
-    df["Brent_Oil_USD"] = pd.to_numeric(df["Brent_Oil_USD"], errors="coerce")  # "." = missing
-    df = df.dropna()
-    return df[df["Date"] >= start].reset_index(drop=True)
+    return df.rename(columns={date_col: "Date", FRED_SERIES: "Brent_Oil_USD"})
+
+
+def brent_from_eia():
+    # FRED's Brent series is republished from the U.S. EIA, so this is the
+    # same monthly average, taken from the original source.
+    resp = get_with_retry(["https://www.eia.gov/dnav/pet/hist_xls/RBRTEm.xls"], tries=2)
+    raw = pd.read_excel(BytesIO(resp.content), sheet_name="Data 1", header=None)
+    df = pd.DataFrame({"Date": pd.to_datetime(raw.iloc[:, 0], errors="coerce", format="mixed"),
+                       "Brent_Oil_USD": raw.iloc[:, 1]})
+    return df.dropna(subset=["Date"])
+
+
+def fetch_brent(start=START):
+    """Returns (data, source name). Tries FRED first, then the EIA."""
+    errors = []
+    for name, fn in [("FRED", brent_from_fred), ("EIA", brent_from_eia)]:
+        try:
+            df = fn()
+            df["Date"] = pd.to_datetime(df["Date"])
+            df["Date"] = df["Date"].dt.to_period("M").dt.to_timestamp()   # first of month
+            df["Brent_Oil_USD"] = pd.to_numeric(df["Brent_Oil_USD"], errors="coerce")
+            df = df.dropna()
+            return df[df["Date"] >= start].reset_index(drop=True), name
+        except Exception as e:
+            errors.append(f"{name}: {type(e).__name__}: {str(e)[:100]}")
+    raise RuntimeError(" | ".join(errors))
 
 
 # ---------------------------------------------------------- NASA POWER
@@ -174,13 +203,13 @@ def fetch_openstat(db, folder, table):
     for candidate in openstat_candidates(db, folder, table):
         tried.append(candidate)
         r = requests.get(candidate, headers=HEADERS, timeout=TIMEOUT)
-        if r.status_code == 200 and "variables" in r.text:
+        if r.status_code == 200 and "variables" in r.content.decode("utf-8-sig", "ignore"):
             meta, url = r, candidate
             break
     if meta is None:
         raise RuntimeError("table not found at: " + " | ".join(tried))
     say(f"     found at {url}")
-    variables = meta.json()["variables"]
+    variables = read_json(meta)["variables"]
 
     query = {
         "query": [{"code": v["code"], "selection": {"filter": "all", "values": ["*"]}}
@@ -189,7 +218,7 @@ def fetch_openstat(db, folder, table):
     }
     resp = requests.post(url, json=query, headers=HEADERS, timeout=TIMEOUT)
     resp.raise_for_status()
-    payload = resp.json()
+    payload = read_json(resp)
 
     labels = {v["code"]: dict(zip(v["values"], v.get("valueTexts", v["values"])))
               for v in variables}
@@ -250,13 +279,14 @@ def main():
     summary, failed = [], []
     weekly, brent = None, None
 
-    say("1/4  Brent crude oil (FRED)")
+    say("1/4  Brent crude oil (FRED, or EIA if FRED is blocked)")
     try:
-        brent = fetch_brent(args.start)
+        brent, source = fetch_brent(args.start)
+        say(f"     from {source}")
         brent.to_csv(OUT / "brent_oil_monthly.csv", index=False)
-        summary.append(("Brent oil", f"{brent['Date'].max():%b %Y}", "brent_oil_monthly.csv"))
+        summary.append((f"Brent oil ({source})", f"{brent['Date'].max():%b %Y}", "brent_oil_monthly.csv"))
     except Exception as e:
-        failed.append(("Brent oil (FRED)", e))
+        failed.append(("Brent oil (FRED and EIA)", e))
 
     say("2/4  Rainfall and temperature (NASA POWER)")
     try:
